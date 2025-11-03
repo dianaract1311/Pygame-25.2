@@ -8,6 +8,7 @@
 
 - [@mearramos](https://www.github.com/mearramos): Maria Ramos 
 - [@dianaract1311](https://github.com/dianaract1311): Dianara 
+- [@felipecorreiac](https://github.com/FelipeCorreiaC): Felipe C. Costa
 
 
 ## Como rodar o código?
