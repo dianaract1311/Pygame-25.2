@@ -1,6 +1,7 @@
 # ===== Inicialização =====
 # ----- Importa e inicia pacotes
 import pygame
+import random
 
 pygame.init()
 
@@ -22,19 +23,11 @@ class Camera:
         self.w = w
         self.h = h
         self.lerp = lerp
-
-        # posição atual da câmera
         self.x = 0.0
         self.y = 0.0
-
-        # deadzone central (largura/altura)
         self.deadzone_w = deadzone_w
         self.deadzone_h = deadzone_h
-
-        # lookahead horizontal (px)
         self.lookahead_x = lookahead_x
-
-        # estado interno para suavizar lookahead
         self._current_look_x = 0.0
         self._look_smooth = 0.12
 
@@ -44,16 +37,13 @@ class Camera:
     def update(self, player_rect, player_vx, world_limits):
         left_limit, right_limit, top_limit, bottom_limit = world_limits
 
-        # deadzone rect em coordenadas de mundo
         dz_left = self.x + (self.w - self.deadzone_w) * 0.5
-        dz_top  = self.y + (self.h - self.deadzone_h) * 0.5
+        dz_top = self.y + (self.h - self.deadzone_h) * 0.5
         dz_rect = pygame.Rect(int(dz_left), int(dz_top), int(self.deadzone_w), int(self.deadzone_h))
 
-        # desired center começa sendo o centro atual da câmera
         desired_cx = self.x + self.w / 2
         desired_cy = self.y + self.h / 2
 
-        # se o jogador sair da deadzone, ajustamos desired_c
         if player_rect.centerx < dz_rect.left:
             offset = dz_rect.left - player_rect.centerx
             desired_cx -= offset
@@ -68,21 +58,17 @@ class Camera:
             offset = player_rect.centery - dz_rect.bottom
             desired_cy += offset
 
-        # lookahead baseado em vx 
-        max_speed = max(1.0, abs(player_vx))
-        target_look = max(-1.0, min(1.0, player_vx / (player_vx if abs(player_vx)>0 else 1.0))) * self.lookahead_x
+        # lookahead
+        target_look = (1 if player_vx > 0 else -1 if player_vx < 0 else 0) * self.lookahead_x
         self._current_look_x = self._lerp(self._current_look_x, target_look, self._look_smooth)
         desired_cx += self._current_look_x
 
-        # converte center desejado para top-left desejado
         desired_x = desired_cx - self.w / 2
         desired_y = desired_cy - self.h / 2
 
-        # clamp com limites do mundo
         desired_x = max(left_limit, min(right_limit - self.w, desired_x))
         desired_y = max(top_limit, min(bottom_limit - self.h, desired_y))
 
-        # suaviza posição atual da câmera para a desejada
         self.x = self._lerp(self.x, desired_x, self.lerp)
         self.y = self._lerp(self.y, desired_y, self.lerp)
 
@@ -98,7 +84,7 @@ class Player:
         self.jump = -15.0
         self.on_ground = True
 
-    def update(self, keys):
+    def update(self, keys, platforms):
         self.vx = 0.0
         if keys[pygame.K_LEFT]:
             self.vx = -self.speed
@@ -108,16 +94,25 @@ class Player:
         # Movimento horizontal
         self.rect.x += int(self.vx)
 
-        # Gravidade e pulo simples
+        # Gravidade
         self.rect.y += int(self.vy)
         if not self.on_ground:
             self.vy += 0.5
 
-        # Colisão com o chão
+        self.on_ground = False
+
+        # Colisão com chão
         if self.rect.bottom >= GROUND_Y:
             self.rect.bottom = GROUND_Y
             self.vy = 0.0
             self.on_ground = True
+
+        # Colisão com plataformas
+        for plat in platforms:
+            if self.rect.colliderect(plat) and self.vy >= 0 and self.rect.bottom - plat.top < 20:
+                self.rect.bottom = plat.top
+                self.vy = 0.0
+                self.on_ground = True
 
         # Limites do mundo
         if self.rect.x < WORLD_LEFT:
@@ -141,9 +136,19 @@ clock = pygame.time.Clock()
 player = Player(100, 670)
 cam = Camera(WIDTH, HEIGHT, lerp=0.12, deadzone_w=380, deadzone_h=180, lookahead_x=140)
 
-GROUND_HEIGHT = 100  # altura do chão
-GROUND_Y = WORLD_BOTTOM - GROUND_HEIGHT  # posição vertical do topo do chão
-ground_color = (40, 120, 40)  # verde escuro
+GROUND_HEIGHT = 100
+GROUND_Y = WORLD_BOTTOM - GROUND_HEIGHT
+ground_color = (40, 120, 40)
+
+platform_img = pygame.image.load("assets/blocks.png").convert_alpha()
+platform_img = pygame.transform.scale(platform_img, (100, 40))
+NUM_PLATFORMS = 20
+platforms = []
+for i in range(NUM_PLATFORMS):
+    x = random.randint(WORLD_LEFT + 100, WORLD_RIGHT - 200)
+    y = random.randint(300, GROUND_Y - 100)
+    rect = pygame.Rect(x, y, 100, 40)
+    platforms.append(rect)
 
 # ===== Loop principal =====
 while game:
@@ -155,22 +160,27 @@ while game:
                 player.jump_action()
 
     keys = pygame.key.get_pressed()
-    player.update(keys)
+    player.update(keys, platforms)
     cam.update(player.rect, player.vx, WORLD_LIMITS)
 
     # Fundo (céu)
     window.fill((35, 60, 110))
 
+    # Chão verde
     ground_rect = pygame.Rect(WORLD_LEFT, GROUND_Y, WORLD_RIGHT - WORLD_LEFT, GROUND_HEIGHT)
     pygame.draw.rect(window, ground_color, ground_rect.move(-int(cam.x), -int(cam.y)))
 
-    # Desenha o jogador
+    # Desenha plataformas
+    for plat in platforms:
+        window.blit(platform_img, (plat.x - int(cam.x), plat.y - int(cam.y)))
+
+    # Desenha jogador
     player.draw(window, cam)
 
-    # HUD simples
+    # HUD
     font = pygame.font.get_default_font()
     f = pygame.font.Font(font, 18)
-    txt = f.render(f"Player x={int(player.rect.x)}  cam.x={int(cam.x)}  cam.y={int(cam.y)}", True, (255,255,255))
+    txt = f.render(f"Player x={int(player.rect.x)}  cam.x={int(cam.x)}", True, (255,255,255))
     window.blit(txt, (10, 10))
 
     pygame.display.update()
