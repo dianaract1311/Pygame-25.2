@@ -7,53 +7,146 @@ pygame.init()
 # ----- Gera tela principal
 WIDTH, HEIGHT = 1280, 720
 window = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption('Nome do jogo')
+pygame.display.set_caption('Jardim Esquecido')
+
+# ----- Limites do mundo 
+WORLD_LEFT = 0
+WORLD_RIGHT = 5000
+WORLD_TOP = 0
+WORLD_BOTTOM = 720  # altura total do mundo 
+WORLD_LIMITS = (WORLD_LEFT, WORLD_RIGHT, WORLD_TOP, WORLD_BOTTOM)
+
+# ----- Classe da câmera
+class Camera:
+    def __init__(self, w, h, lerp=0.12, deadzone_w=400, deadzone_h=200, lookahead_x=100):
+        self.w = w
+        self.h = h
+        self.lerp = lerp
+
+        # posição atual da câmera
+        self.x = 0.0
+        self.y = 0.0
+
+        # deadzone central (largura/altura)
+        self.deadzone_w = deadzone_w
+        self.deadzone_h = deadzone_h
+
+        # lookahead horizontal (px)
+        self.lookahead_x = lookahead_x
+
+        # estado interno para suavizar lookahead
+        self._current_look_x = 0.0
+        self._look_smooth = 0.12
+
+    def _lerp(self, a, b, t):
+        return a + (b - a) * t
+
+    def update(self, player_rect, player_vx, world_limits):
+        left_limit, right_limit, top_limit, bottom_limit = world_limits
+
+        # deadzone rect em coordenadas de mundo
+        dz_left = self.x + (self.w - self.deadzone_w) * 0.5
+        dz_top  = self.y + (self.h - self.deadzone_h) * 0.5
+        dz_rect = pygame.Rect(int(dz_left), int(dz_top), int(self.deadzone_w), int(self.deadzone_h))
+
+        # desired center começa sendo o centro atual da câmera
+        desired_cx = self.x + self.w / 2
+        desired_cy = self.y + self.h / 2
+
+        # se o jogador sair da deadzone, ajustamos desired_c
+        if player_rect.centerx < dz_rect.left:
+            offset = dz_rect.left - player_rect.centerx
+            desired_cx -= offset
+        elif player_rect.centerx > dz_rect.right:
+            offset = player_rect.centerx - dz_rect.right
+            desired_cx += offset
+
+        if player_rect.centery < dz_rect.top:
+            offset = dz_rect.top - player_rect.centery
+            desired_cy -= offset
+        elif player_rect.centery > dz_rect.bottom:
+            offset = player_rect.centery - dz_rect.bottom
+            desired_cy += offset
+
+        # lookahead baseado em vx 
+        max_speed = max(1.0, abs(player_vx))
+        target_look = max(-1.0, min(1.0, player_vx / (player_vx if abs(player_vx)>0 else 1.0))) * self.lookahead_x
+        self._current_look_x = self._lerp(self._current_look_x, target_look, self._look_smooth)
+        desired_cx += self._current_look_x
+
+        # converte center desejado para top-left desejado
+        desired_x = desired_cx - self.w / 2
+        desired_y = desired_cy - self.h / 2
+
+        # clamp com limites do mundo
+        desired_x = max(left_limit, min(right_limit - self.w, desired_x))
+        desired_y = max(top_limit, min(bottom_limit - self.h, desired_y))
+
+        # suaviza posição atual da câmera para a desejada
+        self.x = self._lerp(self.x, desired_x, self.lerp)
+        self.y = self._lerp(self.y, desired_y, self.lerp)
+
 
 # ----- Classe do personagem
 class Player:
     def __init__(self, x, y):
         self.rect = pygame.Rect(x, y, 50, 50)
         self.color = (255, 0, 0)
-        self.vx = 0
-        self.vy = 0
-        self.speed = 5
-        self.jump = -15
+        self.vx = 0.0
+        self.vy = 0.0
+        self.speed = 5.0
+        self.jump = -15.0
         self.on_ground = True
 
     def update(self, keys):
-        # Movimento lateral
+        self.vx = 0.0
         if keys[pygame.K_LEFT]:
-            self.rect.x -= self.speed
+            self.vx = -self.speed
         if keys[pygame.K_RIGHT]:
-            self.rect.x += self.speed
+            self.vx = self.speed
 
-        # Aplicação simples de pulo
-        self.rect.y += self.vy
+        # Movimento horizontal
+        self.rect.x += int(self.vx)
+
+        # Gravidade e pulo simples
+        self.rect.y += int(self.vy)
         if not self.on_ground:
-            self.vy += 1  # gravidade simples fixa
+            self.vy += 0.5
 
-        # "Chão" fixo
-        if self.rect.y >= 670:  # 720 - altura (50)
-            self.rect.y = 670
-            self.vy = 0
+        # Colisão com o chão
+        if self.rect.bottom >= GROUND_Y:
+            self.rect.bottom = GROUND_Y
+            self.vy = 0.0
             self.on_ground = True
+
+        # Limites do mundo
+        if self.rect.x < WORLD_LEFT:
+            self.rect.x = WORLD_LEFT
+        if self.rect.x > WORLD_RIGHT - self.rect.width:
+            self.rect.x = WORLD_RIGHT - self.rect.width
 
     def jump_action(self):
         if self.on_ground:
             self.vy = self.jump
             self.on_ground = False
 
-    def draw(self, surface):
-        pygame.draw.rect(surface, self.color, self.rect)
+    def draw(self, surface, cam):
+        draw_rect = self.rect.move(-int(cam.x), -int(cam.y))
+        pygame.draw.rect(surface, self.color, draw_rect)
+
 
 # ----- Inicia estruturas de dados
 game = True
 clock = pygame.time.Clock()
 player = Player(100, 670)
+cam = Camera(WIDTH, HEIGHT, lerp=0.12, deadzone_w=380, deadzone_h=180, lookahead_x=140)
+
+GROUND_HEIGHT = 100  # altura do chão
+GROUND_Y = WORLD_BOTTOM - GROUND_HEIGHT  # posição vertical do topo do chão
+ground_color = (40, 120, 40)  # verde escuro
 
 # ===== Loop principal =====
 while game:
-    # ----- Trata eventos
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             game = False
@@ -61,17 +154,26 @@ while game:
             if event.key == pygame.K_SPACE:
                 player.jump_action()
 
-    # ----- Atualiza estado
     keys = pygame.key.get_pressed()
     player.update(keys)
+    cam.update(player.rect, player.vx, WORLD_LIMITS)
 
-    # ----- Gera saídas
-    window.fill((0, 0, 255))  # Fundo azul
-    player.draw(window)
+    # Fundo (céu)
+    window.fill((35, 60, 110))
 
-    # ----- Atualiza estado do jogo
-    pygame.display.update()  # Mostra o novo frame
+    ground_rect = pygame.Rect(WORLD_LEFT, GROUND_Y, WORLD_RIGHT - WORLD_LEFT, GROUND_HEIGHT)
+    pygame.draw.rect(window, ground_color, ground_rect.move(-int(cam.x), -int(cam.y)))
+
+    # Desenha o jogador
+    player.draw(window, cam)
+
+    # HUD simples
+    font = pygame.font.get_default_font()
+    f = pygame.font.Font(font, 18)
+    txt = f.render(f"Player x={int(player.rect.x)}  cam.x={int(cam.x)}  cam.y={int(cam.y)}", True, (255,255,255))
+    window.blit(txt, (10, 10))
+
+    pygame.display.update()
     clock.tick(60)
 
-# ===== Finalização =====
-pygame.quit()  # Função do PyGame que finaliza os recursos utilizados
+pygame.quit()
