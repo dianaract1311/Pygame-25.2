@@ -1,124 +1,81 @@
-# ===== Inicialização =====
-# ----- Importa e inicia pacotes
 import pygame
 import random
 
 pygame.init()
 
-# ----- Gera tela principal
+# ===== Configurações da tela =====
 WIDTH, HEIGHT = 1280, 720
 window = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption('Jardim Esquecido')
+pygame.display.set_caption("Jardim Esquecido")
 
-# ----- Limites do mundo 
-WORLD_LEFT = 0
-WORLD_RIGHT = 5000
-WORLD_TOP = 0
-WORLD_BOTTOM = 720  # altura total do mundo 
-WORLD_LIMITS = (WORLD_LEFT, WORLD_RIGHT, WORLD_TOP, WORLD_BOTTOM)
+# ===== Chão =====
+GROUND_HEIGHT = 100
+GROUND_Y = HEIGHT - GROUND_HEIGHT
+ground_color = (40, 120, 40)
 
-# ----- Classe da câmera
+# ===== Câmera =====
 class Camera:
-    def __init__(self, w, h, lerp=0.12, deadzone_w=400, deadzone_h=200, lookahead_x=100):
-        self.w = w
-        self.h = h
+    def __init__(self, w, h, lerp=0.12, lookahead_x=140):
+        self.w, self.h = w, h
         self.lerp = lerp
-        self.x = 0.0
-        self.y = 0.0
-        self.deadzone_w = deadzone_w
-        self.deadzone_h = deadzone_h
         self.lookahead_x = lookahead_x
+        self.x, self.y = 0.0, 0.0
         self._current_look_x = 0.0
         self._look_smooth = 0.12
 
-    def _lerp(self, a, b, t):
-        return a + (b - a) * t
+    def _lerp(self, a, b, t): return a + (b - a) * t
 
-    def update(self, player_rect, player_vx, world_limits):
-        left_limit, right_limit, top_limit, bottom_limit = world_limits
-
-        dz_left = self.x + (self.w - self.deadzone_w) * 0.5
-        dz_top = self.y + (self.h - self.deadzone_h) * 0.5
-        dz_rect = pygame.Rect(int(dz_left), int(dz_top), int(self.deadzone_w), int(self.deadzone_h))
-
-        desired_cx = self.x + self.w / 2
-        desired_cy = self.y + self.h / 2
-
-        if player_rect.centerx < dz_rect.left:
-            offset = dz_rect.left - player_rect.centerx
-            desired_cx -= offset
-        elif player_rect.centerx > dz_rect.right:
-            offset = player_rect.centerx - dz_rect.right
-            desired_cx += offset
-
-        if player_rect.centery < dz_rect.top:
-            offset = dz_rect.top - player_rect.centery
-            desired_cy -= offset
-        elif player_rect.centery > dz_rect.bottom:
-            offset = player_rect.centery - dz_rect.bottom
-            desired_cy += offset
-
-        # lookahead
-        target_look = (1 if player_vx > 0 else -1 if player_vx < 0 else 0) * self.lookahead_x
-        self._current_look_x = self._lerp(self._current_look_x, target_look, self._look_smooth)
-        desired_cx += self._current_look_x
-
-        desired_x = desired_cx - self.w / 2
-        desired_y = desired_cy - self.h / 2
-
-        desired_x = max(left_limit, min(right_limit - self.w, desired_x))
-        desired_y = max(top_limit, min(bottom_limit - self.h, desired_y))
-
-        self.x = self._lerp(self.x, desired_x, self.lerp)
-        self.y = self._lerp(self.y, desired_y, self.lerp)
+    def update(self, player_rect, player_vx):
+        target_x = player_rect.centerx - self.w / 2
+        target_y = player_rect.centery - self.h / 2
+        look_target = (1 if player_vx > 0 else -1 if player_vx < 0 else 0) * self.lookahead_x
+        self._current_look_x = self._lerp(self._current_look_x, look_target, self._look_smooth)
+        target_x += self._current_look_x
+        self.x = self._lerp(self.x, target_x, self.lerp)
+        self.y = self._lerp(self.y, target_y, self.lerp)
 
 
-# ----- Classe do personagem
+# ===== Jogador =====
 class Player:
     def __init__(self, x, y):
         self.rect = pygame.Rect(x, y, 50, 50)
         self.color = (255, 0, 0)
-        self.vx = 0.0
-        self.vy = 0.0
-        self.speed = 5.0
-        self.jump = -15.0
-        self.on_ground = True
+        self.vx = 0
+        self.vy = 0
+        self.speed = 5
+        self.jump = -18
+        self.on_ground = False
 
     def update(self, keys, platforms):
-        self.vx = 0.0
+        # Movimento horizontal
+        self.vx = 0
         if keys[pygame.K_LEFT]:
             self.vx = -self.speed
         if keys[pygame.K_RIGHT]:
             self.vx = self.speed
-
-        # Movimento horizontal
-        self.rect.x += int(self.vx)
+        self.rect.x += self.vx
 
         # Gravidade
-        self.rect.y += int(self.vy)
-        if not self.on_ground:
-            self.vy += 0.5
-
+        self.vy += 0.7
+        if self.vy > 20:
+            self.vy = 20
+        self.rect.y += self.vy
         self.on_ground = False
 
-        # Colisão com chão
+        # Colisões verticais com plataformas
+        for plat in platforms:
+            if self.vy > 0 and self.rect.colliderect(plat):
+                overlap_x = min(self.rect.right, plat.right) - max(self.rect.left, plat.left)
+                if overlap_x > 25 and self.rect.bottom <= plat.top + 20:
+                    self.rect.bottom = plat.top
+                    self.vy = 0
+                    self.on_ground = True
+
+        # Chão
         if self.rect.bottom >= GROUND_Y:
             self.rect.bottom = GROUND_Y
-            self.vy = 0.0
+            self.vy = 0
             self.on_ground = True
-
-        # Colisão com plataformas
-        for plat in platforms:
-            if self.rect.colliderect(plat) and self.vy >= 0 and self.rect.bottom - plat.top < 20:
-                self.rect.bottom = plat.top
-                self.vy = 0.0
-                self.on_ground = True
-
-        # Limites do mundo
-        if self.rect.x < WORLD_LEFT:
-            self.rect.x = WORLD_LEFT
-        if self.rect.x > WORLD_RIGHT - self.rect.width:
-            self.rect.x = WORLD_RIGHT - self.rect.width
 
     def jump_action(self):
         if self.on_ground:
@@ -126,61 +83,67 @@ class Player:
             self.on_ground = False
 
     def draw(self, surface, cam):
-        draw_rect = self.rect.move(-int(cam.x), -int(cam.y))
-        pygame.draw.rect(surface, self.color, draw_rect)
+        pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
 
 
-# ----- Inicia estruturas de dados
-game = True
-clock = pygame.time.Clock()
-player = Player(100, 670)
-cam = Camera(WIDTH, HEIGHT, lerp=0.12, deadzone_w=380, deadzone_h=180, lookahead_x=140)
-
-GROUND_HEIGHT = 100
-GROUND_Y = WORLD_BOTTOM - GROUND_HEIGHT
-ground_color = (40, 120, 40)
-
+# ===== Plataformas =====
 platform_img = pygame.image.load("assets/blocks.png").convert_alpha()
-platform_img = pygame.transform.scale(platform_img, (100, 40))
-NUM_PLATFORMS = 20
+
+NUM_PLATFORMS = 40  # mais plataformas
+MIN_X_GAP = 173     # distância mínima entre plataformas
+MAX_X_GAP = 400     # distância máxima entre plataformas
+MIN_Y = GROUND_Y - 320
+MAX_Y = GROUND_Y - 150
+
 platforms = []
+x_pos = -600  # começa um pouco antes do jogador
+y_base = random.randint(MIN_Y, MAX_Y)
+
 for i in range(NUM_PLATFORMS):
-    x = random.randint(WORLD_LEFT + 100, WORLD_RIGHT - 200)
-    y = random.randint(300, GROUND_Y - 100)
-    rect = pygame.Rect(x, y, 100, 40)
+    width = random.randint(120, 280)
+    height = 60
+    x_pos += random.randint(MIN_X_GAP, MAX_X_GAP)
+    # varia suavemente a altura, mas nunca muito extrema
+    y_variation = random.randint(-150, 150)
+    y_base = max(MIN_Y, min(MAX_Y, y_base + y_variation))
+    rect = pygame.Rect(x_pos, y_base, width, height)
     platforms.append(rect)
 
+# ===== Setup inicial =====
+clock = pygame.time.Clock()
+player = Player(100, GROUND_Y - 50)
+cam = Camera(WIDTH, HEIGHT)
+
 # ===== Loop principal =====
-while game:
+running = True
+while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            game = False
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
-                player.jump_action()
+            running = False
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+            player.jump_action()
 
     keys = pygame.key.get_pressed()
     player.update(keys, platforms)
-    cam.update(player.rect, player.vx, WORLD_LIMITS)
+    cam.update(player.rect, player.vx)
 
-    # Fundo (céu)
+    # Fundo
     window.fill((35, 60, 110))
 
-    # Chão verde
-    ground_rect = pygame.Rect(WORLD_LEFT, GROUND_Y, WORLD_RIGHT - WORLD_LEFT, GROUND_HEIGHT)
-    pygame.draw.rect(window, ground_color, ground_rect.move(-int(cam.x), -int(cam.y)))
+    # Chão
+    pygame.draw.rect(window, ground_color, (0 - int(cam.x), GROUND_Y - int(cam.y), 20000, GROUND_HEIGHT))
 
-    # Desenha plataformas
+    # Plataformas
     for plat in platforms:
-        window.blit(platform_img, (plat.x - int(cam.x), plat.y - int(cam.y)))
+        scaled = pygame.transform.scale(platform_img, (plat.width, plat.height))
+        window.blit(scaled, (plat.x - int(cam.x), plat.y - int(cam.y)))
 
-    # Desenha jogador
+    # Jogador
     player.draw(window, cam)
 
     # HUD
-    font = pygame.font.get_default_font()
-    f = pygame.font.Font(font, 18)
-    txt = f.render(f"Player x={int(player.rect.x)}  cam.x={int(cam.x)}", True, (255,255,255))
+    font = pygame.font.Font(pygame.font.get_default_font(), 18)
+    txt = font.render(f"x={int(player.rect.x)}", True, (255,255,255))
     window.blit(txt, (10, 10))
 
     pygame.display.update()
