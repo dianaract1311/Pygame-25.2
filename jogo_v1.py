@@ -34,7 +34,6 @@ class Camera:
         self.x = self._lerp(self.x, target_x, self.lerp)
         self.y = self._lerp(self.y, target_y, self.lerp)
 
-
 # ===== Jogador =====
 class Player:
     def __init__(self, x, y):
@@ -85,15 +84,16 @@ class Player:
     def draw(self, surface, cam):
         pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
 
-
 # ===== Plataformas =====
 platform_img = pygame.image.load("assets/blocks.png").convert_alpha()
 
 NUM_PLATFORMS = 40  # mais plataformas
-MIN_X_GAP = 173     # distância mínima entre plataformas
+MIN_X_GAP = 170     # distância mínima entre plataformas
 MAX_X_GAP = 400     # distância máxima entre plataformas
 MIN_Y = GROUND_Y - 320
-MAX_Y = GROUND_Y - 150
+MAX_Y = GROUND_Y - 200
+MIN_Y_DIFF = 50     # diferença mínima de altura entre plataformas
+MAX_Y_DIFF = 180    # diferença máxima de altura entre plataformas
 
 platforms = []
 x_pos = -600  # começa um pouco antes do jogador
@@ -103,9 +103,15 @@ for i in range(NUM_PLATFORMS):
     width = random.randint(120, 280)
     height = 60
     x_pos += random.randint(MIN_X_GAP, MAX_X_GAP)
-    # varia suavemente a altura, mas nunca muito extrema
-    y_variation = random.randint(-150, 150)
-    y_base = max(MIN_Y, min(MAX_Y, y_base + y_variation))
+
+    # gerar altura da próxima plataforma com diferença mínima e máxima
+    while True:
+        y_variation = random.randint(-MAX_Y_DIFF, MAX_Y_DIFF)
+        new_y = y_base + y_variation
+        if MIN_Y <= new_y <= MAX_Y and abs(new_y - y_base) >= MIN_Y_DIFF:
+            y_base = new_y
+            break
+
     rect = pygame.Rect(x_pos, y_base, width, height)
     platforms.append(rect)
 
