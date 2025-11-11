@@ -131,40 +131,6 @@ class Enemy:
     def draw(self, surface, cam):
         pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
 
-# ===== Inimigos fase 2 =====
-class EnemyPhase2:
-    def __init__(self, platform, speed=2):
-        self.platform = platform
-        self.width = 60
-        self.height = 60
-        self.left_limit = platform.left + 4
-        self.right_limit = platform.right - self.width - 4
-        start_x = random.randint(self.left_limit, self.right_limit)
-        self.rect = pygame.Rect(start_x, platform.top - self.height, self.width, self.height)
-        self.color = (0, 0, 0)
-        self.speed = speed
-        self.direction = random.choice([-1, 1])
-        self.alive = True
-        self.hp = 2
-
-    def update(self):
-        self.rect.x += self.speed * self.direction
-        if self.rect.x <= self.left_limit:
-            self.rect.x = self.left_limit
-            self.direction = 1
-        elif self.rect.x >= self.right_limit:
-            self.rect.x = self.right_limit
-            self.direction = -1
-        self.rect.bottom = self.platform.top
-
-    def take_damage(self):
-        self.hp -= 1
-        if self.hp <= 0:
-            self.alive = False
-
-    def draw(self, surface, cam):
-        pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
-
 # ===== Plataformas =====
 platform_img = pygame.image.load("assets/blocks.png").convert_alpha()
 
@@ -207,13 +173,13 @@ all_platforms = platforms + lower_platforms
 
 # ===== Círculos aleatórios sobre plataformas =====
 circles_on_platforms = []
-for plat in platforms:  # apenas nas plataformas principais
-    if random.random() < 0.3:  # 30% de chance
+for plat in platforms:
+    if random.random() < 0.3:
         cx = plat.centerx
         cy = plat.top - 15
         circles_on_platforms.append((cx, cy))
 
-# ===== Gera inimigos fase 1 =====
+# ===== Gera inimigos =====
 enemies = []
 for plat in random.sample(platforms, k=min(len(platforms), 20)):
     enemies.append(Enemy(plat, speed=random.randint(2, 4)))
@@ -230,10 +196,9 @@ font = pygame.font.Font(pygame.font.get_default_font(), 24)
 bullets = []
 green_circles = []
 
-fase2_started = False
-fase2_timer = 0
-
 game_over = False
+start_time = pygame.time.get_ticks()
+enemies_defeated = 0
 
 # ===== Loop principal =====
 running = True
@@ -273,55 +238,13 @@ while running:
             bullet.update()
             for enemy in enemies:
                 if enemy.alive and bullet.rect.colliderect(enemy.rect):
-                    if isinstance(enemy, EnemyPhase2):
-                        enemy.take_damage()
-                        if not enemy.alive:
-                            green_circles.append((enemy.rect.centerx, enemy.rect.centery))
-                        bullet.alive = False
-                    else:
-                        green_circles.append((enemy.rect.centerx, enemy.rect.centery))
-                        enemy.alive = False
-                        bullet.alive = False
+                    green_circles.append((enemy.rect.centerx, enemy.rect.centery))
+                    enemy.alive = False
+                    bullet.alive = False
+                    enemies_defeated += 1
 
         bullets = [b for b in bullets if b.alive]
         enemies = [e for e in enemies if e.alive]
-
-        # ===== Fase 2 =====
-        if not fase2_started and player.rect.x >= 5530:
-            fase2_started = True
-            fase2_timer = pygame.time.get_ticks()
-
-            enemies.clear()
-            platforms.clear()
-            all_platforms.clear()
-            green_circles.clear()
-            circles_on_platforms.clear()
-
-            x_pos = 12000
-            y_base = random.randint(MIN_Y, MAX_Y)
-            for i in range(NUM_PLATFORMS):
-                width = random.randint(295, 600)
-                height = 60
-                x_pos += random.randint(MIN_X_GAP, MAX_X_GAP)
-                while True:
-                    y_variation = random.randint(-MAX_Y_DIFF, MAX_Y_DIFF)
-                    new_y = y_base + y_variation
-                    if MIN_Y <= new_y <= MAX_Y and abs(new_y - y_base) >= MIN_Y_DIFF:
-                        y_base = new_y
-                        break
-                rect = pygame.Rect(x_pos, y_base, width, height)
-                platforms.append(rect)
-            all_platforms = platforms.copy()
-
-            for plat in random.sample(platforms, k=min(len(platforms), 20)):
-                enemies.append(EnemyPhase2(plat, speed=random.randint(2, 4)))
-
-            # círculos fase 2
-            for plat in platforms:
-                if random.random() < 0.3:
-                    cx = plat.centerx
-                    cy = plat.top - 15
-                    circles_on_platforms.append((cx, cy))
 
     # ===== Desenho =====
     window.fill((35, 60, 110))
@@ -357,15 +280,10 @@ while running:
     player.draw(window, cam)
 
     # HUD
-    txt = font.render(f"x={int(player.rect.x)}  Lives={player.lives}", True, (255,255,255))
+    elapsed_seconds = (pygame.time.get_ticks() - start_time) // 1000
+    txt = font.render(f"x={int(player.rect.x)}  Lives={player.lives}  Time={elapsed_seconds}s  Enemies={enemies_defeated}", True, (255,255,255))
     window.blit(txt, (10, 10))
 
-    # Fase 2
-    if fase2_started:
-        elapsed = pygame.time.get_ticks() - fase2_timer
-        if elapsed < 2000:
-            fase2_txt = font.render("FASE 2", True, (255, 255, 0))
-            window.blit(fase2_txt, (WIDTH//2 - 50, HEIGHT//2 - 20))
 
     pygame.display.update()
     clock.tick(40)
