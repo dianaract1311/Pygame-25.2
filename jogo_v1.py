@@ -44,14 +44,17 @@ class Player:
         self.speed = 5
         self.jump = -18
         self.on_ground = False
+        self.facing = 1  # 1 = direita, -1 = esquerda
 
     def update(self, keys, platforms):
         # Movimento horizontal
         self.vx = 0
         if keys[pygame.K_LEFT]:
             self.vx = -self.speed
+            self.facing = -1
         if keys[pygame.K_RIGHT]:
             self.vx = self.speed
+            self.facing = 1
         self.rect.x += self.vx
 
         # Gravidade
@@ -84,27 +87,74 @@ class Player:
     def draw(self, surface, cam):
         pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
 
+
+# ===== Classe do tiro =====
+class Bullet:
+    def __init__(self, x, y, direction):
+        self.rect = pygame.Rect(x, y, 10, 10)
+        self.color = (255, 255, 0)
+        self.speed = 12 * direction
+        self.alive = True
+
+    def update(self):
+        self.rect.x += self.speed
+        # Remove se sair muito longe
+        if self.rect.x < -5000 or self.rect.x > 20000:
+            self.alive = False
+
+    def draw(self, surface, cam):
+        pygame.draw.circle(surface, self.color, (self.rect.centerx - int(cam.x), self.rect.centery - int(cam.y)), 5)
+
+
+# ===== Inimigos =====
+class Enemy:
+    def __init__(self, platform, speed=2):
+        self.platform = platform
+        self.width = 40
+        self.height = 40
+        self.left_limit = platform.left + 4
+        self.right_limit = platform.right - self.width - 4
+        start_x = random.randint(self.left_limit, self.right_limit)
+        self.rect = pygame.Rect(start_x, platform.top - self.height, self.width, self.height)
+        self.color = (0, 0, 0)
+        self.speed = speed
+        self.direction = random.choice([-1, 1])
+        self.alive = True
+
+    def update(self):
+        self.rect.x += self.speed * self.direction
+        if self.rect.x <= self.left_limit:
+            self.rect.x = self.left_limit
+            self.direction = 1
+        elif self.rect.x >= self.right_limit:
+            self.rect.x = self.right_limit
+            self.direction = -1
+        self.rect.bottom = self.platform.top
+
+    def draw(self, surface, cam):
+        pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
+
+
 # ===== Plataformas =====
 platform_img = pygame.image.load("assets/blocks.png").convert_alpha()
 
-NUM_PLATFORMS = 40  # mais plataformas
-MIN_X_GAP = 170     # distância mínima entre plataformas
-MAX_X_GAP = 400     # distância máxima entre plataformas
+NUM_PLATFORMS = 40
+MIN_X_GAP = 170
+MAX_X_GAP = 400
 MIN_Y = GROUND_Y - 320
 MAX_Y = GROUND_Y - 200
-MIN_Y_DIFF = 50     # diferença mínima de altura entre plataformas
-MAX_Y_DIFF = 180    # diferença máxima de altura entre plataformas
+MIN_Y_DIFF = 50
+MAX_Y_DIFF = 180
 
 platforms = []
-x_pos = -600  # começa um pouco antes do jogador
+x_pos = -600
 y_base = random.randint(MIN_Y, MAX_Y)
 
 for i in range(NUM_PLATFORMS):
-    width = random.randint(120, 280)
+    width = random.randint(280, 350)
     height = 60
     x_pos += random.randint(MIN_X_GAP, MAX_X_GAP)
 
-    # gerar altura da próxima plataforma com diferença mínima e máxima
     while True:
         y_variation = random.randint(-MAX_Y_DIFF, MAX_Y_DIFF)
         new_y = y_base + y_variation
@@ -115,10 +165,23 @@ for i in range(NUM_PLATFORMS):
     rect = pygame.Rect(x_pos, y_base, width, height)
     platforms.append(rect)
 
+# ===== Gera inimigos =====
+enemies = []
+
+for plat in random.sample(platforms, k=min(len(platforms), 20)):
+    enemies.append(Enemy(plat, speed=random.randint(2, 4)))
+
+ground_platform = pygame.Rect(0, GROUND_Y, 20000, 60)
+for i in range(6):
+    enemies.append(Enemy(ground_platform, speed=random.randint(2, 3)))
+
 # ===== Setup inicial =====
 clock = pygame.time.Clock()
 player = Player(100, GROUND_Y - 50)
 cam = Camera(WIDTH, HEIGHT)
+font = pygame.font.Font(pygame.font.get_default_font(), 24)
+game_over = False
+bullets = []  # lista de tiros
 
 # ===== Loop principal =====
 running = True
@@ -126,33 +189,63 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-            player.jump_action()
+        if not game_over and event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                player.jump_action()
+            if event.key == pygame.K_e:  # atira
+                bx = player.rect.centerx + (player.facing * 30)
+                by = player.rect.centery
+                bullets.append(Bullet(bx, by, player.facing))
 
     keys = pygame.key.get_pressed()
-    player.update(keys, platforms)
-    cam.update(player.rect, player.vx)
 
-    # Fundo
+    if not game_over:
+        player.update(keys, platforms)
+        cam.update(player.rect, player.vx)
+
+        # Atualiza inimigos
+        for enemy in enemies:
+            if enemy.alive:
+                enemy.update()
+                if player.rect.colliderect(enemy.rect):
+                    game_over = True
+
+        # Atualiza tiros
+        for bullet in bullets:
+            bullet.update()
+            # Colisão tiro x inimigo
+            for enemy in enemies:
+                if enemy.alive and bullet.rect.colliderect(enemy.rect):
+                    enemy.alive = False
+                    bullet.alive = False
+
+        # Remove objetos mortos
+        bullets = [b for b in bullets if b.alive]
+        enemies = [e for e in enemies if e.alive]
+
+    # ===== Desenho =====
     window.fill((35, 60, 110))
-
-    # Chão
     pygame.draw.rect(window, ground_color, (0 - int(cam.x), GROUND_Y - int(cam.y), 20000, GROUND_HEIGHT))
 
-    # Plataformas
     for plat in platforms:
         scaled = pygame.transform.scale(platform_img, (plat.width, plat.height))
         window.blit(scaled, (plat.x - int(cam.x), plat.y - int(cam.y)))
 
-    # Jogador
+    for enemy in enemies:
+        enemy.draw(window, cam)
+
+    for bullet in bullets:
+        bullet.draw(window, cam)
+
     player.draw(window, cam)
 
-    # HUD
-    font = pygame.font.Font(pygame.font.get_default_font(), 18)
     txt = font.render(f"x={int(player.rect.x)}", True, (255,255,255))
     window.blit(txt, (10, 10))
 
     pygame.display.update()
     clock.tick(60)
+
+    if game_over :
+        running = False
 
 pygame.quit()
