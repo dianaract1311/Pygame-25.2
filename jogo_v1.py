@@ -8,10 +8,13 @@ WIDTH, HEIGHT = 1280, 720
 window = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Jardim Esquecido")
 
+image = pygame.image.load("assets/background.jpg").convert()
+background = pygame.transform.scale(image, (WIDTH, HEIGHT))
+
 # ===== Chão =====
 GROUND_HEIGHT = 100
 GROUND_Y = HEIGHT - GROUND_HEIGHT
-ground_color = (40, 120, 40)
+ground_color = (10, 9, 9)
 
 # ===== Câmera =====
 class Camera:
@@ -45,7 +48,7 @@ class Player:
         self.jump = -18
         self.on_ground = False
         self.facing = 1
-        self.lives = 3  # 3 toques antes de morrer
+        self.lives = 3
 
     def update(self, keys, platforms):
         self.vx = 0
@@ -57,14 +60,12 @@ class Player:
             self.facing = 1
         self.rect.x += self.vx
 
-        # Gravidade
         self.vy += 0.7
         if self.vy > 20:
             self.vy = 20
         self.rect.y += self.vy
         self.on_ground = False
 
-        # Colisões verticais com plataformas
         for plat in platforms:
             if self.vy > 0 and self.rect.colliderect(plat):
                 overlap_x = min(self.rect.right, plat.right) - max(self.rect.left, plat.left)
@@ -73,7 +74,6 @@ class Player:
                     self.vy = 0
                     self.on_ground = True
 
-        # Chão
         if self.rect.bottom >= GROUND_Y:
             self.rect.bottom = GROUND_Y
             self.vy = 0
@@ -168,21 +168,21 @@ class EnemyPhase2:
 # ===== Plataformas =====
 platform_img = pygame.image.load("assets/blocks.png").convert_alpha()
 
-NUM_PLATFORMS = 40
-MIN_X_GAP = 170
+NUM_PLATFORMS = 20
+MIN_X_GAP = 160
 MAX_X_GAP = 400
-MIN_Y = GROUND_Y - 320
+MIN_Y = GROUND_Y - 440
 MAX_Y = GROUND_Y - 200
-MIN_Y_DIFF = 50
-MAX_Y_DIFF = 180
+MIN_Y_DIFF = 170
+MAX_Y_DIFF = 190
 
 platforms = []
 x_pos = -600
 y_base = random.randint(MIN_Y, MAX_Y)
 
-# Plataformas principais (superiores)
+# Plataformas principais
 for i in range(NUM_PLATFORMS):
-    width = random.randint(120, 280)
+    width = random.randint(280, 450)
     height = 60
     x_pos += random.randint(MIN_X_GAP, MAX_X_GAP)
     while True:
@@ -194,7 +194,7 @@ for i in range(NUM_PLATFORMS):
     rect = pygame.Rect(x_pos, y_base, width, height)
     platforms.append(rect)
 
-# Plataformas de recuperação (perto do chão)
+# Plataformas de recuperação
 lower_platforms = []
 for i in range(random.randint(4, 6)):
     width = random.randint(80, 160)
@@ -204,6 +204,14 @@ for i in range(random.randint(4, 6)):
     lower_platforms.append(pygame.Rect(x, y, width, height))
 
 all_platforms = platforms + lower_platforms
+
+# ===== Círculos aleatórios sobre plataformas =====
+circles_on_platforms = []
+for plat in platforms:  # apenas nas plataformas principais
+    if random.random() < 0.3:  # 30% de chance
+        cx = plat.centerx
+        cy = plat.top - 15
+        circles_on_platforms.append((cx, cy))
 
 # ===== Gera inimigos fase 1 =====
 enemies = []
@@ -236,7 +244,7 @@ while running:
         if not game_over and event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 player.jump_action()
-            if event.key == pygame.K_e:  # atira
+            if event.key == pygame.K_e:
                 bx = player.rect.centerx + (player.facing * 30)
                 by = player.rect.centery
                 bullets.append(Bullet(bx, by, player.facing))
@@ -247,24 +255,20 @@ while running:
         player.update(keys, all_platforms)
         cam.update(player.rect, player.vx)
 
-        # ===== Colisão com inimigos =====
         for enemy in enemies:
             if enemy.alive and player.rect.colliderect(enemy.rect):
                 player.lives -= 1
                 if player.lives <= 0:
                     game_over = True
                 else:
-                    # Retroceder um pouco e "pistar"
                     player.rect.x -= 150
                     player.rect.y -= 50
                     player.vy = 0
 
-        # ===== Atualização inimigos =====
         for enemy in enemies:
             if enemy.alive:
                 enemy.update()
 
-        # ===== Atualização tiros =====
         for bullet in bullets:
             bullet.update()
             for enemy in enemies:
@@ -283,17 +287,16 @@ while running:
         enemies = [e for e in enemies if e.alive]
 
         # ===== Fase 2 =====
-        if not fase2_started and player.rect.x >= 11650:
+        if not fase2_started and player.rect.x >= 5530:
             fase2_started = True
             fase2_timer = pygame.time.get_ticks()
 
-            # Limpa inimigos e plataformas antigos
             enemies.clear()
             platforms.clear()
             all_platforms.clear()
             green_circles.clear()
+            circles_on_platforms.clear()
 
-            # Cria novas plataformas fase 2
             x_pos = 12000
             y_base = random.randint(MIN_Y, MAX_Y)
             for i in range(NUM_PLATFORMS):
@@ -310,20 +313,35 @@ while running:
                 platforms.append(rect)
             all_platforms = platforms.copy()
 
-            # Gera inimigos fase 2
             for plat in random.sample(platforms, k=min(len(platforms), 20)):
                 enemies.append(EnemyPhase2(plat, speed=random.randint(2, 4)))
 
+            # círculos fase 2
+            for plat in platforms:
+                if random.random() < 0.3:
+                    cx = plat.centerx
+                    cy = plat.top - 15
+                    circles_on_platforms.append((cx, cy))
+
     # ===== Desenho =====
     window.fill((35, 60, 110))
+    window.blit(background, (0, 0))
     pygame.draw.rect(window, ground_color, (0 - int(cam.x), GROUND_Y - int(cam.y), 20000, GROUND_HEIGHT))
 
     # Plataformas
     for plat in all_platforms:
-        scaled = pygame.transform.scale(platform_img, (plat.width, plat.height))
-        window.blit(scaled, (plat.x - int(cam.x), plat.y - int(cam.y)))
+        pygame.draw.rect(
+            window,
+            ground_color,
+            (plat.x - int(cam.x), plat.y - int(cam.y), plat.width, plat.height),
+            border_radius=12
+        )
 
-    # Círculos verdes
+    # Círculos sobre plataformas
+    for cx, cy in circles_on_platforms:
+        pygame.draw.circle(window, (0, 200, 255), (cx - int(cam.x), cy - int(cam.y)), 15)
+
+    # Círculos verdes (inimigos mortos)
     for gx, gy in green_circles:
         pygame.draw.circle(window, (0, 255, 0), (gx - int(cam.x), gy - int(cam.y)), 15)
 
@@ -345,11 +363,11 @@ while running:
     # Fase 2
     if fase2_started:
         elapsed = pygame.time.get_ticks() - fase2_timer
-        if elapsed < 2000:  # mostra por 2 segundos
+        if elapsed < 2000:
             fase2_txt = font.render("FASE 2", True, (255, 255, 0))
             window.blit(fase2_txt, (WIDTH//2 - 50, HEIGHT//2 - 20))
 
     pygame.display.update()
-    clock.tick(60)
+    clock.tick(40)
 
 pygame.quit()
