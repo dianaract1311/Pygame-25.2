@@ -70,6 +70,26 @@ class Camera:
         if self.y > MAP_HEIGHT - self.h:
             self.y = MAP_HEIGHT - self.h
 
+from PIL import Image
+
+def load_gif_frames(path):
+    """Carrega todos os frames de um GIF animado e retorna uma lista de Surfaces do pygame."""
+    frames = []
+    pil_image = Image.open(path)
+
+    try:
+        while True:
+            # Converte frame atual para RGBA (transparente)
+            frame = pil_image.convert("RGBA")
+            # Converte para Surface compatível com pygame
+            pygame_image = pygame.image.fromstring(frame.tobytes(), frame.size, frame.mode)
+            frames.append(pygame_image.copy())
+            pil_image.seek(pil_image.tell() + 1)
+    except EOFError:
+        pass  # acabou o GIF
+
+    return frames
+
 # ===== Jogador (com invulnerabilidade) =====
 class Player:
     def __init__(self, x, y):
@@ -90,6 +110,37 @@ class Player:
         self.invuln_duration = 2000      # duração em ms (2 segundos)
         self.blink_interval = 150        # ms para piscar enquanto invulnerável
 
+        # ===== Carrega frames de corrida (run.gif) =====
+        run_path = os.path.join("assets", "run.gif")
+        frames = []
+        try:
+            frames = load_gif_frames(run_path)
+        except Exception as e:
+            print(f"Erro carregando run.gif: {e}")
+            frames = []
+
+        # Redimensiona frames para o tamanho do jogador
+        self.run_frames_right = [
+            pygame.transform.smoothscale(f, (self.rect.width, self.rect.height))
+            for f in frames
+        ]
+        # Cria frames invertidos (para andar à esquerda)
+        self.run_frames_left = [pygame.transform.flip(f, True, False) for f in self.run_frames_right]
+        self.frame_index = 0
+        self.animation_speed = 0.2
+        self.animation_timer = 0
+
+        # ===== Carrega sprite de pulo (jump.png) =====
+        jump_path = os.path.join("assets", "jump.png")
+        self.jump_frame = None
+        try:
+            jimg = pygame.image.load(jump_path).convert_alpha()
+            self.jump_frame = pygame.transform.smoothscale(jimg, (self.rect.width, self.rect.height))
+        except Exception as e:
+            # se falhar, apenas mantemos jump_frame = None (fallback será o comportamento anterior)
+            print(f"Aviso: não foi possível carregar jump.png: {e}")
+            self.jump_frame = None
+
     def update(self, keys, platforms, walls):
         self.vx = 0
         if keys[pygame.K_LEFT]:
@@ -99,6 +150,15 @@ class Player:
             self.vx = self.speed
             self.facing = 1
         self.rect.x += self.vx
+        if self.vx != 0:
+            self.animation_timer += self.animation_speed
+            if self.animation_timer >= 1:
+                self.animation_timer = 0
+                if len(self.run_frames_right) > 0:
+                    self.frame_index = (self.frame_index + 1) % len(self.run_frames_right)
+        else:
+            self.frame_index = 0
+
 
         # Checagem de colisão simples com paredes laterais (impede atravessar)
         for wall in walls:
@@ -159,14 +219,36 @@ class Player:
         return True
 
     def draw(self, surface, cam):
-        # Se estiver invulnerável, faz blink (pisca) para indicar
+        # Blink: quando invulnerável, alterna visibilidade; quando invisível, não desenha nada.
         if self.invulnerable:
             elapsed = pygame.time.get_ticks() - self.invuln_start
             visible = (elapsed // self.blink_interval) % 2 == 0
-            if visible:
-                pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
         else:
-            pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
+            visible = True
+
+        if not visible:
+            return  # não desenha nada
+
+        # Se estiver no ar, desenha o sprite de pulo (se disponível)
+        if not self.on_ground and self.jump_frame is not None:
+            surface.blit(self.jump_frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
+            return
+
+        # Seleciona frame de corrida (ou frame 0 se parado)
+        if self.vx != 0 and len(self.run_frames_right) > 0:
+            frames = self.run_frames_right if self.facing == 1 else self.run_frames_left
+            frame = frames[self.frame_index % len(frames)]
+        else:
+            # garante que existe pelo menos um frame
+            if len(self.run_frames_right) > 0:
+                frame = self.run_frames_right[0] if self.facing == 1 else self.run_frames_left[0]
+            else:
+                # fallback desenha um retângulo se algo deu errado com os frames
+                pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
+                return
+
+        surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
+
 
 # ===== Classe do tiro =====
 class Bullet:
