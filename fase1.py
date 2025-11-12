@@ -128,22 +128,44 @@ class Player:
             self.vy = 0
             self.on_ground = True
 
-        # ===== Limites do mapa =====
-        MAP_LEFT_LIMIT = 0
-        MAP_RIGHT_LIMIT = 6000
+        # Limites do mapa (colisão final com paredes)
+        MAP_LEFT_LIMIT = WALL_WIDTH
+        MAP_RIGHT_LIMIT = MAP_WIDTH - WALL_WIDTH
 
         if self.rect.left < MAP_LEFT_LIMIT:
             self.rect.left = MAP_LEFT_LIMIT
         if self.rect.right > MAP_RIGHT_LIMIT:
             self.rect.right = MAP_RIGHT_LIMIT
 
+        # Atualiza estado de invulnerabilidade
+        if self.invulnerable:
+            elapsed = pygame.time.get_ticks() - self.invuln_start
+            if elapsed >= self.invuln_duration:
+                self.invulnerable = False
+
     def jump_action(self):
         if self.on_ground:
             self.vy = self.jump
             self.on_ground = False
 
+    def take_damage(self):
+        """Aplica dano: decrementa vida e inicia invulnerabilidade (se já invulnerável, ignora)."""
+        if self.invulnerable:
+            return False  # não sofreu dano pois já invulnerável
+        self.lives -= 1
+        self.invulnerable = True
+        self.invuln_start = pygame.time.get_ticks()
+        return True
+
     def draw(self, surface, cam):
-        pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
+        # Se estiver invulnerável, faz blink (pisca) para indicar
+        if self.invulnerable:
+            elapsed = pygame.time.get_ticks() - self.invuln_start
+            visible = (elapsed // self.blink_interval) % 2 == 0
+            if visible:
+                pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
+        else:
+            pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
 
 # ===== Classe do tiro =====
 class Bullet:
