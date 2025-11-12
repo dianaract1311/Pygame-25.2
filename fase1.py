@@ -70,9 +70,9 @@ class Camera:
         if self.y > MAP_HEIGHT - self.h:
             self.y = MAP_HEIGHT - self.h
 
-# ===== Jogador =====
+# ===== Jogador (com invulnerabilidade) =====
 class Player:
-    def __init__(self, x, y):
+    def _init_(self, x, y):
         self.rect = pygame.Rect(x, y, 50, 50)
         self.color = (255, 0, 0)
         self.vx = 0
@@ -81,10 +81,15 @@ class Player:
         self.jump = -18
         self.on_ground = False
         self.facing = 1
-        self.lives = 3
-        self.orbes_collected = 0
+        self.lives = 4  # 4 vidas conforme pedido
 
-    def update(self, keys, platforms):
+        # Invulnerabilidade após tomar dano
+        self.invulnerable = False
+        self.invuln_start = 0            # pygame.time.get_ticks() quando a invuln começou
+        self.invuln_duration = 2000      # duração em ms (2 segundos)
+        self.blink_interval = 150        # ms para piscar enquanto invulnerável
+
+    def update(self, keys, platforms, walls):
         self.vx = 0
         if keys[pygame.K_LEFT]:
             self.vx = -self.speed
@@ -94,24 +99,13 @@ class Player:
             self.facing = 1
         self.rect.x += self.vx
 
-        self.vy += 0.7
-        if self.vy > 20:
-            self.vy = 20
-        self.rect.y += self.vy
-        self.on_ground = False
-
-        for plat in platforms:
-            if self.vy > 0 and self.rect.colliderect(plat):
-                overlap_x = min(self.rect.right, plat.right) - max(self.rect.left, plat.left)
-                if overlap_x > 25 and self.rect.bottom <= plat.top + 20:
-                    self.rect.bottom = plat.top
-                    self.vy = 0
-                    self.on_ground = True
-
-        if self.rect.bottom >= GROUND_Y:
-            self.rect.bottom = GROUND_Y
-            self.vy = 0
-            self.on_ground = True
+        # Checagem de colisão simples com paredes laterais (impede atravessar)
+        for wall in walls:
+            if self.rect.colliderect(wall):
+                if self.vx > 0:  # movendo para a direita, colidiu na parede direita
+                    self.rect.right = wall.left
+                elif self.vx < 0:  # movendo para a esquerda
+                    self.rect.left = wall.right
 
         # ===== Limites do mapa =====
         MAP_LEFT_LIMIT = 0
