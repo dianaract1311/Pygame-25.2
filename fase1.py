@@ -361,14 +361,19 @@ for idx in orb_platform_indices:
 total_orbs = len(orbs)
 collected_orbs = 0
 
-# ===== Gera inimigos =====
+# ===== Gera inimigos (reduzidos) =====
 enemies = []
-for plat in random.sample(platforms, k=min(len(platforms), 20)):
-    enemies.append(Enemy(plat, speed=random.randint(2, 4)))
+PLATFORM_ENEMIES = 4   # máximo de inimigos nas plataformas principais
+GROUND_ENEMIES = 1     # inimigos no chão
 
-ground_platform = pygame.Rect(0, GROUND_Y, 20000, 60)
-for i in range(6):
-    enemies.append(Enemy(ground_platform, speed=random.randint(2, 3)))
+if len(platforms) > 0:
+    sample_k = min(len(platforms), PLATFORM_ENEMIES)
+    for plat in random.sample(platforms, k=sample_k):
+        enemies.append(Enemy(plat, speed=random.randint(1, 3), sprite_size=(45,45)))
+
+ground_platform = pygame.Rect(0, GROUND_Y, MAP_WIDTH, 60)
+for i in range(GROUND_ENEMIES):
+    enemies.append(Enemy(ground_platform, speed=random.randint(1, 2), sprite_size=(45,45)))
 
 # ===== Setup inicial =====
 clock = pygame.time.Clock()
