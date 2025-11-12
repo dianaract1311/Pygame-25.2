@@ -40,7 +40,7 @@ def load_strip(path, frames_count):
 
 # ===== Câmera =====
 class Camera:
-    def _init_(self, w, h, lerp=0.12, lookahead_x=140):
+    def __init__(self, w, h, lerp=0.12, lookahead_x=140):
         self.w, self.h = w, h
         self.lerp = lerp
         self.lookahead_x = lookahead_x
@@ -72,7 +72,8 @@ class Camera:
 
 # ===== Jogador (com invulnerabilidade) =====
 class Player:
-    def _init_(self, x, y):
+    def __init__(self, x, y):
+
         self.rect = pygame.Rect(x, y, 50, 50)
         self.color = (255, 0, 0)
         self.vx = 0
@@ -186,7 +187,7 @@ class Bullet:
 
         # ===== Inimigos: agora apenas a animação de WALK usando o strip indicado =====
 class Enemy:
-    def _init_(self, platform, speed=2, sprite_size=(45,45)):
+    def __init__(self, platform, speed=2, sprite_size=(45,45)):
         self.platform = platform
         self.width, self.height = sprite_size
 
@@ -245,12 +246,12 @@ class Enemy:
             elif self.rect.x >= self.right_limit:
                 self.rect.x = self.right_limit
                 self.direction = -1
-            self.rect.bottom = self.platform.top - 5
+            self.rect.bottom = self.platform.top
 
             # definir estado
             self.state = "walk"
         else:
-            self.rect.bottom = self.platform.top - 5
+            self.rect.bottom = self.platform.top
 
         # animação
         self.animation_timer += self.animation_speed
@@ -278,48 +279,6 @@ class Enemy:
             frames = self.idle_right if self.direction == 1 else self.idle_left
         idx = self.frame_index % len(frames)
         frame = frames[idx]
-        surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
-
-        
-# ===== Inimigos animados =====
-class Enemy:
-    def __init__(self, platform, speed=2):
-        self.platform = platform
-        self.width = 60
-        self.height = 60
-        self.left_limit = platform.left + 4
-        self.right_limit = platform.right - self.width - 4
-        start_x = random.randint(self.left_limit, self.right_limit)
-        self.rect = pygame.Rect(start_x, platform.top - self.height - 5, self.width, self.height)
-        self.speed = speed
-        self.direction = random.choice([-1, 1])
-        self.alive = True
-        self.frames = [
-            pygame.transform.scale(pygame.image.load("assets/fly1.png").convert_alpha(), (self.width, self.height)),
-            pygame.transform.scale(pygame.image.load("assets/fly2.png").convert_alpha(), (self.width, self.height))
-        ]
-        self.frame_index = 0
-        self.animation_speed = 0.2
-        self.animation_timer = 0
-
-    def update(self):
-        self.rect.x += self.speed * self.direction
-        if self.rect.x <= self.left_limit:
-            self.rect.x = self.left_limit
-            self.direction = 1
-        elif self.rect.x >= self.right_limit:
-            self.rect.x = self.right_limit
-            self.direction = -1
-        self.rect.bottom = self.platform.top - 5
-        self.animation_timer += self.animation_speed
-        if self.animation_timer >= 1:
-            self.animation_timer = 0
-            self.frame_index = (self.frame_index + 1) % len(self.frames)
-
-    def draw(self, surface, cam):
-        frame = self.frames[self.frame_index]
-        if self.direction == 1:
-            frame = pygame.transform.flip(frame, True, False)
         surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
 
 # ===== Plataformas FIXAS (layout "coringa") =====
@@ -507,3 +466,38 @@ while running:
     # Desenha paredes laterais (visíveis)
     pygame.draw.rect(window, (60, 60, 60), (left_wall.x - int(cam.x), left_wall.y - int(cam.y), left_wall.width, left_wall.height))
     pygame.draw.rect(window, (60, 60, 60), (right_wall.x - int(cam.x), right_wall.y - int(cam.y), right_wall.width, right_wall.height))
+
+        # ===== HUD: vidas no canto superior esquerdo =====
+    heart_radius = 10
+    heart_padding = 10
+    for i in range(4):  # total de 4 vidas
+        hx = heart_padding + i * (heart_radius * 2 + 8)
+        hy = heart_padding + heart_radius
+        color = (255, 0, 0) if i < player.lives else (80, 80, 80)
+        pygame.draw.circle(window, color, (hx, hy), heart_radius)
+
+    # ===== Slots de orbes (círculos brancos vazios no centro inferior) - desenha contorno
+    for i in range(slots_total):
+        sx = slots_start_x + i * slot_spacing
+        pygame.draw.circle(window, (200, 200, 200), (sx, slots_y), slot_radius, width=3)
+
+    # Preenche os slots coletados (círculos brancos cheios)
+    for i in range(collected_orbs):
+        if i >= slots_total:
+            break
+        sx = slots_start_x + i * slot_spacing
+        pygame.draw.circle(window, (255, 255, 255), (sx, slots_y), slot_radius - 4)
+
+    # ===== Tela final =====
+    if game_over:
+        msg = "GAME OVER"
+        msg_surface = font.render(msg, True, (255, 255, 0))
+        window.blit(msg_surface, (WIDTH // 2 - msg_surface.get_width() // 2, HEIGHT // 2 - 20))
+        pygame.display.update()
+        pygame.time.wait(4000)
+        running = False
+
+    pygame.display.update()
+    clock.tick(60)
+
+pygame.quit()
