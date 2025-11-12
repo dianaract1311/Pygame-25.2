@@ -1,5 +1,7 @@
 import pygame
 import random
+import math
+import os #facilitar o uso das imagens/sprites
 
 pygame.init()
 
@@ -8,6 +10,7 @@ WIDTH, HEIGHT = 1280, 720
 window = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Jardim Esquecido")
 
+# Carrega o background uma vez
 image = pygame.image.load("assets/background.jpg").convert()
 background = pygame.transform.scale(image, (WIDTH, HEIGHT))
 
@@ -15,6 +18,25 @@ background = pygame.transform.scale(image, (WIDTH, HEIGHT))
 GROUND_HEIGHT = 100
 GROUND_Y = HEIGHT - GROUND_HEIGHT
 ground_color = (10, 9, 9)
+
+# ===== Limites do mapa (duas telas em sequência) =====
+MAP_WIDTH = WIDTH * 2  # duas telas lado a lado
+MAP_HEIGHT = HEIGHT
+WALL_WIDTH = 40  # largura das paredes laterais
+
+# ===== carrega sprite strip e divide em frames =====
+def load_strip(path, frames_count):
+    """Carrega uma imagem tipo sprite strip horizontal e retorna lista de frames Surface."""
+    img = pygame.image.load(path).convert_alpha()
+    w, h = img.get_size()
+    frame_w = w // frames_count
+    frames = []
+    for i in range(frames_count):
+        rect = pygame.Rect(i * frame_w, 0, frame_w, h)
+        frame = pygame.Surface((frame_w, h), pygame.SRCALPHA)
+        frame.blit(img, (0, 0), rect)
+        frames.append(frame)
+    return frames
 
 # ===== Câmera =====
 class Camera:
