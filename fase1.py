@@ -470,4 +470,40 @@ while running:
     # Desenha chão (ajustado ao MAP_WIDTH)
     pygame.draw.rect(window, ground_color, (0 - int(cam.x), GROUND_Y - int(cam.y), MAP_WIDTH, GROUND_HEIGHT))
 
-    
+    for plat in all_platforms:
+        if plat.right < int(cam.x) - 200 or plat.left > int(cam.x) + WIDTH + 200:
+            continue
+        pygame.draw.rect(
+            window,
+            ground_color,
+            (plat.x - int(cam.x), plat.y - int(cam.y), plat.width, plat.height),
+            border_radius=12
+        )
+
+    # Orbes (coletáveis) — desenha se ainda existirem e estiverem na tela
+    orb_color = (255, 200, 0)
+    for orb in orbs:
+        if orb.right < int(cam.x) - 200 or orb.left > int(cam.x) + WIDTH + 200:
+            continue
+        pygame.draw.circle(window, orb_color, (orb.centerx - int(cam.x), orb.centery - int(cam.y)), orb_radius)
+
+    # Inimigos (desenha apenas os próximos à câmera)
+    for enemy in enemies:
+        if enemy.dead_finished:
+            continue
+        if enemy.rect.right < int(cam.x) - 200 or enemy.rect.left > int(cam.x) + WIDTH + 200:
+            continue
+        enemy.draw(window, cam)
+
+    # Tiros
+    for bullet in bullets:
+        if bullet.rect.right < int(cam.x) - 200 or bullet.rect.left > int(cam.x) + WIDTH + 200:
+            continue
+        bullet.draw(window, cam)
+
+    # Jogador
+    player.draw(window, cam)
+
+    # Desenha paredes laterais (visíveis)
+    pygame.draw.rect(window, (60, 60, 60), (left_wall.x - int(cam.x), left_wall.y - int(cam.y), left_wall.width, left_wall.height))
+    pygame.draw.rect(window, (60, 60, 60), (right_wall.x - int(cam.x), right_wall.y - int(cam.y), right_wall.width, right_wall.height))
