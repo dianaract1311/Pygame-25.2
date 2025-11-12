@@ -320,19 +320,30 @@ for idx in orb_platform_indices:
 total_orbs = len(orbs)
 collected_orbs = 0
 
-# ===== Gera inimigos (reduzidos) =====
+# ===== Gera inimigos - sobre as plataformas principais =====
 enemies = []
-PLATFORM_ENEMIES = 4   # máximo de inimigos nas plataformas principais
-GROUND_ENEMIES = 1     # inimigos no chão
 
-if len(platforms) > 0:
-    sample_k = min(len(platforms), PLATFORM_ENEMIES)
-    for plat in random.sample(platforms, k=sample_k):
-        enemies.append(Enemy(plat, speed=random.randint(1, 3), sprite_size=(45,45)))
+for plat in platforms:
+    enemy = Enemy(plat, speed=2, sprite_size=(45,45))
+    # posiciona o inimigo exatamente no centro da plataforma
+    enemy.rect.centerx = plat.centerx
+    enemy.rect.bottom = plat.top
+    # define direção inicial para alternar (opcional)
+    enemy.direction = 1 if plat.centerx % 2 == 0 else -1
+    enemies.append(enemy)
 
+# Cria um ou dois inimigos no chão fixos (exemplo)
 ground_platform = pygame.Rect(0, GROUND_Y, MAP_WIDTH, 60)
-for i in range(GROUND_ENEMIES):
-    enemies.append(Enemy(ground_platform, speed=random.randint(1, 2), sprite_size=(45,45)))
+
+ground_enemy1 = Enemy(ground_platform, speed=2, sprite_size=(45,45))
+ground_enemy1.rect.centerx = WIDTH // 2 - 200
+ground_enemy1.rect.bottom = GROUND_Y
+enemies.append(ground_enemy1)
+
+ground_enemy2 = Enemy(ground_platform, speed=2, sprite_size=(45,45))
+ground_enemy2.rect.centerx = WIDTH + 400
+ground_enemy2.rect.bottom = GROUND_Y
+enemies.append(ground_enemy2)
 
 # ===== Setup inicial =====
 clock = pygame.time.Clock()
