@@ -106,6 +106,27 @@ class Player:
                     self.rect.right = wall.left
                 elif self.vx < 0:  # movendo para a esquerda
                     self.rect.left = wall.right
+                       
+        # Gravidade
+        self.vy += 0.7
+        if self.vy > 20:
+            self.vy = 20
+        self.rect.y += self.vy
+        self.on_ground = False
+
+        # Colisão com plataformas (simples, por eixo Y)
+        for plat in platforms:
+            if self.vy > 0 and self.rect.colliderect(plat):
+                overlap_x = min(self.rect.right, plat.right) - max(self.rect.left, plat.left)
+                if overlap_x > 25 and self.rect.bottom <= plat.top + 20:
+                    self.rect.bottom = plat.top
+                    self.vy = 0
+                    self.on_ground = True
+
+        if self.rect.bottom >= GROUND_Y:
+            self.rect.bottom = GROUND_Y
+            self.vy = 0
+            self.on_ground = True
 
         # ===== Limites do mapa =====
         MAP_LEFT_LIMIT = 0
