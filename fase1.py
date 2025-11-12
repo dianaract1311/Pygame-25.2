@@ -267,7 +267,7 @@ class Bullet:
     def draw(self, surface, cam):
         pygame.draw.circle(surface, self.color, (self.rect.centerx - int(cam.x), self.rect.centery - int(cam.y)), 5)
 
-        # ===== Inimigos: agora apenas a animação de WALK usando o strip indicado =====
+# ===== Inimigos (slimes) =====
 class Enemy:
     def __init__(self, platform, speed=2, sprite_size=(45,45)):
         self.platform = platform
@@ -363,6 +363,80 @@ class Enemy:
         frame = frames[idx]
         surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
 
+# ===== Novos inimigos: GroundEnemy (mushroom GIF) =====
+class GroundEnemy:
+    def __init__(self, x_center, ground_y, speed=2, sprite_size=(45,45)):
+        self.width, self.height = sprite_size
+        # posiciona no chão com center x fornecido
+        self.rect = pygame.Rect(0, 0, self.width, self.height)
+        self.rect.centerx = x_center
+        self.rect.bottom = ground_y
+
+        # limites de patrulha no chão (mantém dentro das paredes)
+        self.left_limit = WALL_WIDTH + 10
+        self.right_limit = MAP_WIDTH - WALL_WIDTH - 10
+
+        self.speed = speed
+        self.direction = random.choice([-1, 1])
+        self.alive = True
+        self.dead_finished = False
+
+        # Carrega frames do GIF mushroom_walk_anim.gif
+        self.walk_right = []
+        self.walk_left = []
+        try:
+            mpath = os.path.join("assets", "mushroom_walk_anim.gif")
+            mframes = load_gif_frames(mpath)
+            norm = []
+            for f in mframes:
+                if f.get_size() != (self.width, self.height):
+                    norm.append(pygame.transform.smoothscale(f, (self.width, self.height)))
+                else:
+                    norm.append(f)
+            self.walk_right = norm if len(norm) > 0 else [pygame.Surface((self.width, self.height), pygame.SRCALPHA)]
+            self.walk_left = [pygame.transform.flip(f, True, False) for f in self.walk_right]
+        except Exception as e:
+            print(f"Erro carregando mushroom GIF: {e}")
+            fallback = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            fallback.fill((120,80,0))
+            self.walk_right = [fallback]
+            self.walk_left = [pygame.transform.flip(fallback, True, False)]
+
+        self.frame_index = 0
+        self.animation_speed = 0.18
+        self.animation_timer = 0
+
+    def update(self):
+        if self.dead_finished:
+            return
+        # Move horizontalmente apenas no chão entre left_limit e right_limit
+        self.rect.x += self.speed * self.direction
+        if self.rect.left <= self.left_limit:
+            self.rect.left = self.left_limit
+            self.direction = 1
+        elif self.rect.right >= self.right_limit:
+            self.rect.right = self.right_limit
+            self.direction = -1
+
+        self.rect.bottom = GROUND_Y  # garante que fica no chão
+
+        # animação
+        self.animation_timer += self.animation_speed
+        if self.animation_timer >= 1:
+            self.animation_timer = 0
+            self.frame_index = (self.frame_index + 1) % len(self.walk_right)
+
+    def start_death(self):
+        self.alive = False
+        self.dead_finished = True
+
+    def draw(self, surface, cam):
+        if self.dead_finished:
+            return
+        frames = self.walk_right if self.direction == 1 else self.walk_left
+        frame = frames[self.frame_index % len(frames)]
+        surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
+
 # ===== Plataformas FIXAS (layout "coringa") =====
 PLATFORMS_FIXED = [
     # Tela 1 (0 .. WIDTH)
@@ -414,18 +488,23 @@ for plat in platforms:
     enemy.direction = 1 if plat.centerx % 2 == 0 else -1
     enemies.append(enemy)
 
-# Cria um ou dois inimigos no chão fixos (exemplo)
-ground_platform = pygame.Rect(0, GROUND_Y, MAP_WIDTH, 60)
+NUM_GROUND_ENEMIES = 7
+min_x = WALL_WIDTH + 50
+max_x = MAP_WIDTH - WALL_WIDTH - 50
+min_dist = 300  # distância mínima entre inimigos
 
-ground_enemy1 = Enemy(ground_platform, speed=2, sprite_size=(45,45))
-ground_enemy1.rect.centerx = WIDTH // 2 - 200
-ground_enemy1.rect.bottom = GROUND_Y
-enemies.append(ground_enemy1)
+positions = []
+attempts = 0
+while len(positions) < NUM_GROUND_ENEMIES and attempts < 1000:
+    attempts += 1
+    x = random.randint(min_x, max_x)
+    if all(abs(x - px) >= min_dist for px in positions):
+        positions.append(x)
 
-ground_enemy2 = Enemy(ground_platform, speed=2, sprite_size=(45,45))
-ground_enemy2.rect.centerx = WIDTH + 400
-ground_enemy2.rect.bottom = GROUND_Y
-enemies.append(ground_enemy2)
+for x in positions:
+    ge = GroundEnemy(x, GROUND_Y, speed=2, sprite_size=(45,45))
+    enemies.append(ge)
+
 
 # ===== Setup inicial =====
 clock = pygame.time.Clock()
@@ -493,7 +572,7 @@ while running:
         cam_left = int(cam.x) - 200
         cam_right = int(cam.x) + WIDTH + 200
         for enemy in enemies:
-            if enemy.dead_finished:
+            if hasattr(enemy, "dead_finished") and enemy.dead_finished:
                 continue
             if enemy.rect.right < cam_left or enemy.rect.left > cam_right:
                 continue
@@ -503,13 +582,17 @@ while running:
         for bullet in bullets:
             bullet.update()
             for enemy in enemies:
-                if enemy.alive and bullet.rect.colliderect(enemy.rect):
-                    enemy.start_death()
+                if getattr(enemy, "alive", True) and bullet.rect.colliderect(enemy.rect):
+                    # marca como morto para ambos tipos de inimigo
+                    if hasattr(enemy, "start_death"):
+                        enemy.start_death()
+                    else:
+                        enemy.alive = False
                     bullet.alive = False
                     enemies_defeated += 1
 
         bullets = [b for b in bullets if b.alive]
-        enemies = [e for e in enemies if not e.dead_finished]
+        enemies = [e for e in enemies if not (hasattr(e, "dead_finished") and e.dead_finished)]
 
     # ===== Desenho =====
     window.fill((35, 60, 110))
@@ -541,7 +624,7 @@ while running:
 
     # Inimigos (desenha apenas os próximos à câmera)
     for enemy in enemies:
-        if enemy.dead_finished:
+        if hasattr(enemy, "dead_finished") and enemy.dead_finished:
             continue
         if enemy.rect.right < int(cam.x) - 200 or enemy.rect.left > int(cam.x) + WIDTH + 200:
             continue
