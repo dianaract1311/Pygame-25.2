@@ -12,6 +12,12 @@ pygame.mixer.init()
 # Carrega o som do tiro
 tiro = pygame.mixer.Sound("assets/snd/gunfire_sfx.wav")
 jump = pygame.mixer.Sound("assets/snd/SFX_Jump_03.wav")
+# --- Adicionado: som de dano (golpe) ---
+try:
+    golpe = pygame.mixer.Sound(os.path.join("assets", "snd", "golpe.mp3"))
+except Exception as e:
+    print(f"Aviso: não foi possível carregar golpe.mp3: {e}")
+    golpe = None
 
 # inicia o timer somente quando o jogo começa
 start_time = pygame.time.get_ticks()
@@ -812,6 +818,9 @@ while running:
             if enemy.alive and player.rect.colliderect(enemy.rect):
                 damaged = player.take_damage()
                 if damaged:
+                    # play golpe sound when player takes damage
+                    if golpe:
+                        golpe.play()
                     if player.lives <= 0:
                         game_over = True
                     else:
