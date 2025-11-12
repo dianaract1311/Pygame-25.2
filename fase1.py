@@ -106,7 +106,7 @@ class Player:
                     self.rect.right = wall.left
                 elif self.vx < 0:  # movendo para a esquerda
                     self.rect.left = wall.right
-                       
+
         # Gravidade
         self.vy += 0.7
         if self.vy > 20:
@@ -177,12 +177,12 @@ class Bullet:
 
     def update(self):
         self.rect.x += self.speed
-        if self.rect.x < -5000 or self.rect.x > 20000:
+        # destruir se sair fora do mapa
+        if self.rect.right < 0 or self.rect.left > MAP_WIDTH:
             self.alive = False
 
     def draw(self, surface, cam):
         pygame.draw.circle(surface, self.color, (self.rect.centerx - int(cam.x), self.rect.centery - int(cam.y)), 5)
-
 # ===== Inimigos animados =====
 class Enemy:
     def __init__(self, platform, speed=2):
