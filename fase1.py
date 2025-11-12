@@ -172,11 +172,8 @@ class Player:
         self.jump_frame = None
         try:
             jimg = pygame.image.load(jump_path).convert_alpha()
-            # Mantemos proporção: escala para caber na altura do rect mantendo proporção
-            jw, jh = jimg.get_size()
-            scale_h = self.rect.height
-            scale_w = int(jw * (scale_h / jh))
-            self.jump_frame = pygame.transform.smoothscale(jimg, (scale_w, scale_h))
+            # **Alteração**: redimensionar o frame de pulo para exatamente o mesmo tamanho do rect
+            self.jump_frame = pygame.transform.smoothscale(jimg, (self.rect.width, self.rect.height))
         except Exception as e:
             # se falhar, apenas mantemos jump_frame = None (fallback será o comportamento anterior)
             print(f"Aviso: não foi possível carregar jump.png: {e}")
@@ -272,12 +269,9 @@ class Player:
 
         # Se estiver no ar, desenha o sprite de pulo (se disponível)
         if not self.on_ground and self.jump_frame is not None:
-            # desenhamos o sprite de pulo centralizado horizontalmente no rect para evitar "esticamento"
+            # desenha o sprite de pulo no mesmo tamanho e posição do rect
             frame = self.jump_frame
-            fw, fh = frame.get_size()
-            x = self.rect.centerx - fw // 2 - int(cam.x)
-            y = self.rect.y - int(cam.y)
-            surface.blit(frame, (x, y))
+            surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
             return
 
         # Escolhe sprite conforme estado do jogador
