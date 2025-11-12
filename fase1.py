@@ -534,6 +534,8 @@ clock = pygame.time.Clock()
 player = Player(WALL_WIDTH + 100, GROUND_Y - 50)
 cam = Camera(WIDTH, HEIGHT)
 font = pygame.font.Font(pygame.font.get_default_font(), 24)
+timer_icon = pygame.image.load(os.path.join("assets", "timer_pygame.png")).convert_alpha()
+timer_icon = pygame.transform.smoothscale(timer_icon, (28, 28))
 bullets = []
 green_circles = []
 
@@ -545,6 +547,12 @@ walls = [left_wall, right_wall]
 game_over = False
 start_time = pygame.time.get_ticks()
 enemies_defeated = 0
+
+
+# ===== Tempo de partida (em milissegundos) =====
+TIME_LIMIT = 45 * 1000  # 60 segundos
+time_remaining = TIME_LIMIT
+next_phase = False
 
 # ===== Helpers para performance / desenhos pré-calculados =====
 # pre-calc positions for bottom orb slots (centered)
@@ -574,6 +582,15 @@ while running:
     if not game_over:
         player.update(keys, all_platforms, walls)
         cam.update(player.rect, player.vx)
+
+        # Atualiza o tempo restante
+        elapsed = pygame.time.get_ticks() - start_time
+        time_remaining = max(0, TIME_LIMIT - elapsed)
+
+        # Se o tempo acabou, o jogo termina
+        if time_remaining == 0:
+            game_over = True
+
 
         # Checa colisão jogador <-> orbes (removendo ao coletar)
         for orb in orbs[:]:
@@ -674,6 +691,13 @@ while running:
         hy = heart_padding + heart_radius
         color = (255, 0, 0) if i < player.lives else (80, 80, 80)
         pygame.draw.circle(window, color, (hx, hy), heart_radius)
+    
+    seconds_left = time_remaining // 1000
+    timer_text = font.render(f"Tempo: {seconds_left:02d}s", True, (255, 255, 255))
+
+    window.blit(timer_icon, (WIDTH - 210, 10))
+    window.blit(timer_text, (WIDTH - 175, 12))
+
 
     # ===== Slots de orbes (círculos brancos vazios no centro inferior) - desenha contorno
     for i in range(slots_total):
@@ -689,11 +713,7 @@ while running:
 
     # ===== Tela final =====
     if game_over:
-        msg = "GAME OVER"
-        msg_surface = font.render(msg, True, (255, 255, 0))
-        window.blit(msg_surface, (WIDTH // 2 - msg_surface.get_width() // 2, HEIGHT // 2 - 20))
-        pygame.display.update()
-        pygame.time.wait(4000)
+        pygame.time.wait(3000)
         running = False
 
     pygame.display.update()
