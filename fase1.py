@@ -1,8 +1,8 @@
 import pygame
 import random
-import math
+import math 
 import os #facilitar o uso das imagens/sprites
-import json
+import json #permite leitura de arquivos JSON, para armazenar dados do ranking (dica do ChatGPT)
 
 pygame.init()
 
@@ -16,7 +16,7 @@ tiro = pygame.mixer.Sound("assets/snd/gunfire_sfx.wav")
 start_time = pygame.time.get_ticks()
 time_elapsed_ms = 0
 
-# toca música de fundo em loop (-1 = loop infinito)
+# toca música de fundo em loop (-1 = loop infinito) -- ChatGPT
 music_path = os.path.join("assets", "snd", "musica_fundo.mp3")
 try:
     pygame.mixer.music.load(music_path)
@@ -26,17 +26,17 @@ except Exception as e:
     print(f"Aviso: não foi possível tocar a música: {e}")
 
 # ===== Configurações da tela =====
-WIDTH, HEIGHT = 1280, 720
-window = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Forest Jump")
+WIDTH, HEIGHT = 1280, 720 # resolução da tela
+window = pygame.display.set_mode((WIDTH, HEIGHT)) # aplica a resolução na tela
+pygame.display.set_caption("Forest Jump") # nome do jogo
 
 # Carrega o background uma vez
 image = pygame.image.load("assets/background.jpg").convert()
 background = pygame.transform.scale(image, (WIDTH, HEIGHT))
 
 # ===== Chão =====
-GROUND_HEIGHT = 100
-GROUND_Y = HEIGHT - GROUND_HEIGHT
+GROUND_HEIGHT = 100 # 100px para cima
+GROUND_Y = HEIGHT - GROUND_HEIGHT #calcula a coordenada Y do topo do chão com base na altura da janela e na altura do chão
 ground_color = (10, 9, 9)
 
 # ===== Limites do mapa (duas telas em sequência) =====
@@ -46,7 +46,6 @@ WALL_WIDTH = 40  # largura das paredes laterais
 
 # ===== carrega sprite strip e divide em frames =====
 def load_strip(path, frames_count):
-    """Carrega uma imagem tipo sprite strip horizontal e retorna lista de frames Surface."""
     img = pygame.image.load(path).convert_alpha()
     w, h = img.get_size()
     frame_w = w // frames_count
@@ -90,13 +89,11 @@ class Camera:
         if self.y > MAP_HEIGHT - self.h:
             self.y = MAP_HEIGHT - self.h
 
-from PIL import Image
+from PIL import Image # importa biblioteca Pillow para ler os sprites de gif
 
 def load_gif_frames(path):
-    """Carrega todos os frames de um GIF animado e retorna uma lista de Surfaces do pygame."""
     frames = []
     pil_image = Image.open(path)
-
     try:
         while True:
             # Converte frame atual para RGBA (transparente)
@@ -844,7 +841,7 @@ while running:
         bullets = [b for b in bullets if b.alive]
         enemies = [e for e in enemies if not (hasattr(e, "dead_finished") and e.dead_finished)]
 
-        # checa vitória ao coletar todas as orbes
+        # Checa vitória ao coletar todas as orbes
         if collected_orbs >= total_orbs and not game_won:
             game_won = True
             entering_name = True
@@ -903,7 +900,7 @@ while running:
     # ===== HUD: vidas no canto superior esquerdo =====
     heart_radius = 10
     heart_padding = 10
-    for i in range(4):  # total de 4 vidas
+    for i in range(4):  # total de 4 vidas ao todo
         hx = heart_padding + i * (heart_radius * 2 + 8)
         hy = heart_padding + heart_radius
         color = (255, 0, 0) if i < player.lives else (80, 80, 80)
@@ -927,6 +924,8 @@ while running:
             break
         sx = slots_start_x + i * slot_spacing
         pygame.draw.circle(window, (255, 255, 255), (sx, slots_y), slot_radius - 4)
+
+    ### A parte dedicada ao ranking foi auxiliada com ChatGPT ###
 
     # ===== Tela de vitória: mostra tempo final e input para nome =====
     if game_won:
@@ -965,7 +964,7 @@ while running:
 
         # instrução para reiniciar (após salvar ou pular digitar)
         if not entering_name:
-            inst = font.render("Aperte a tecla espaço para reiniciar", True, (255,255,0))
+            inst = font.render("Aperte a tecla ESPAÇO para reiniciar", True, (255,255,0))
             window.blit(inst, (WIDTH//2 - inst.get_width()//2, HEIGHT//2 + 70))
 
     # ===== Tela final (game over) =====
@@ -980,7 +979,7 @@ while running:
         window.blit(go_surf, (WIDTH//2 - go_surf.get_width()//2, HEIGHT//2 - 40))
 
         # instrução para reiniciar
-        inst2 = font.render("aperte a tecla espaço para reiniciar", True, (255, 255, 0))
+        inst2 = font.render("Aperte a tecla ESPAÇO para reiniciar", True, (255, 255, 0))
         window.blit(inst2, (WIDTH//2 - inst2.get_width()//2, HEIGHT//2 + 10))
 
     pygame.display.update()
