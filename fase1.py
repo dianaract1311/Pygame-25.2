@@ -746,8 +746,29 @@ while running:
 
     # ===== Tela final =====
     if game_over:
-        pygame.time.wait(3000)
-        running = False
+        from tela_final import mostrar_tela_final
+        acao = mostrar_tela_final(window, background, font, collected_orbs, total_orbs)
+
+        if acao == "voltar":
+            # Reinicia o jogo
+            player = Player(WALL_WIDTH + 100, GROUND_Y - 50)
+            cam = Camera(WIDTH, HEIGHT)
+            collected_orbs = 0
+            orbs = []
+            for idx in orb_platform_indices:
+                plat = platforms[idx]
+                ox = plat.centerx
+                oy = plat.top - 15
+                orbs.append(pygame.Rect(ox - orb_radius, oy - orb_radius, orb_radius * 2, orb_radius * 2))
+            enemies_defeated = 0
+            start_time = pygame.time.get_ticks()
+            time_remaining = TIME_LIMIT
+            game_over = False
+            continue  # volta pro loop do jogo
+
+        elif acao == "sair":
+            running = False
+
 
     pygame.display.update()
     clock.tick(60)
