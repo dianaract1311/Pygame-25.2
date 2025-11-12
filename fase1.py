@@ -183,6 +183,60 @@ class Bullet:
 
     def draw(self, surface, cam):
         pygame.draw.circle(surface, self.color, (self.rect.centerx - int(cam.x), self.rect.centery - int(cam.y)), 5)
+
+        # ===== Inimigos: agora apenas a animação de WALK usando o strip indicado =====
+class Enemy:
+    def _init_(self, platform, speed=2, sprite_size=(45,45)):
+        self.platform = platform
+        self.width, self.height = sprite_size
+
+        self.left_limit = platform.left + 4
+        self.right_limit = platform.right - self.width - 4
+        start_x = random.randint(max(self.left_limit, WALL_WIDTH + 4), min(self.right_limit, MAP_WIDTH - WALL_WIDTH - 4))
+        self.rect = pygame.Rect(start_x, platform.top - self.height, self.width, self.height)
+
+        self.speed = speed
+        self.direction = random.choice([-1, 1])
+        self.alive = True
+        self.dying = False
+        self.dead_finished = False
+
+        # Carrega apenas a strip de walk que você informou estar em:
+        # assets/slime/slime_walk_anim_strip_15.png
+        walk_path = os.path.join("assets", "slime", "slime_walk_anim_strip_15.png")
+        try:
+            walk_frames = load_strip(walk_path, 15)
+            # normaliza tamanho
+            norm_walk = []
+            for f in walk_frames:
+                if f.get_size() != (self.width, self.height):
+                    norm_walk.append(pygame.transform.smoothscale(f, (self.width, self.height)))
+                else:
+                    norm_walk.append(f)
+            self.walk_right = norm_walk
+            self.walk_left = [pygame.transform.flip(f, True, False) for f in self.walk_right]
+        except Exception as e:
+            print(f"Erro carregando {walk_path}: {e}")
+            # fallback: superfície simples
+            fallback = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            fallback.fill((0,180,0))
+            self.walk_right = [fallback]
+            self.walk_left = [pygame.transform.flip(fallback, True, False)]
+
+        # usa walk frames também como idle (simples)
+        self.idle_right = [self.walk_right[0]]
+        self.idle_left = [self.walk_left[0]]
+
+        # estado/frames
+        self.state = "walk"
+        self.frame_index = 0
+        self.animation_speed = 0.18
+        self.animation_timer = 0
+
+    def update(self):
+        if self.dead_finished:
+            return
+        
 # ===== Inimigos animados =====
 class Enemy:
     def __init__(self, platform, speed=2):
