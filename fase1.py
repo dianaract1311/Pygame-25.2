@@ -132,11 +132,7 @@ class Player:
             self.idle_frames_left = [pygame.transform.flip(f, True, False) for f in self.idle_frames_right]
         except Exception as e:
             print(f"Aviso: não foi possível carregar idle.gif: {e}")
-            # fallback — usa o primeiro frame de corrida como idle
-            if len(self.run_frames_right) > 0:
-                self.idle_frames_right = [self.run_frames_right[0]]
-                self.idle_frames_left = [self.run_frames_left[0]]
-
+            # fallback — será preenchido mais abaixo se necessário
 
         # Redimensiona frames para o tamanho do jogador
         self.run_frames_right = [
@@ -148,6 +144,11 @@ class Player:
         self.frame_index = 0
         self.animation_speed = 0.2
         self.animation_timer = 0
+
+        # Se idle não foi carregado, usa um fallback a partir de run
+        if len(self.idle_frames_right) == 0 and len(self.run_frames_right) > 0:
+            self.idle_frames_right = [self.run_frames_right[0]]
+            self.idle_frames_left = [self.run_frames_left[0]]
 
         # ===== Carrega sprite de pulo (jump.png) =====
         jump_path = os.path.join("assets", "jump.png")
@@ -545,7 +546,8 @@ right_wall = pygame.Rect(MAP_WIDTH - WALL_WIDTH, 0, WALL_WIDTH, MAP_HEIGHT)
 walls = [left_wall, right_wall]
 
 game_over = False
-start_time = pygame.time.get_ticks()
+# start_time será definido quando o jogador apertar espaço na tela inicial
+start_time = None
 enemies_defeated = 0
 
 
@@ -562,6 +564,37 @@ slot_spacing = slot_radius * 2 + 12
 slots_center_x = WIDTH // 2
 slots_start_x = slots_center_x - (slot_spacing * slots_total) // 2 + slot_spacing // 2
 slots_y = HEIGHT - 40  # centro inferior
+
+# ===== Carrega tela inicial =====
+start_screen_path = os.path.join("assets", "tela_inicial.png")
+try:
+    start_img = pygame.image.load(start_screen_path).convert()
+    start_img = pygame.transform.scale(start_img, (WIDTH, HEIGHT))
+except Exception as e:
+    print(f"Aviso: não foi possível carregar tela_inicial.png: {e}")
+    start_img = None
+
+# ===== Tela inicial — aguarda espaço para iniciar =====
+game_started = False
+while not game_started:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            raise SystemExit()
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                game_started = True
+    # desenha a imagem (ou uma tela sólida se não existir)
+    if start_img:
+        window.blit(start_img, (0, 0))
+    else:
+        window.fill((0, 0, 0))
+    pygame.display.update()
+    clock.tick(60)
+
+# inicia o timer somente quando o jogo começa
+start_time = pygame.time.get_ticks()
+time_remaining = TIME_LIMIT
 
 # ===== Loop principal =====
 running = True
