@@ -2,13 +2,30 @@ import pygame
 import random
 import math
 import os #facilitar o uso das imagens/sprites
+import json
 
 pygame.init()
+
+# inicializa o mixer de áudio
+pygame.mixer.init()
+
+# inicia o timer somente quando o jogo começa
+start_time = pygame.time.get_ticks()
+time_elapsed_ms = 0
+
+# toca música de fundo em loop (-1 = loop infinito)
+music_path = os.path.join("assets", "snd", "musica_fundo.mp3")
+try:
+    pygame.mixer.music.load(music_path)
+    pygame.mixer.music.set_volume(0.6)  # ajuste entre 0.0 e 1.0 conforme quiser
+    pygame.mixer.music.play(-1)  # -1 = toca em loop infinito
+except Exception as e:
+    print(f"Aviso: não foi possível tocar a música: {e}")
 
 # ===== Configurações da tela =====
 WIDTH, HEIGHT = 1280, 720
 window = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Jardim Esquecido")
+pygame.display.set_caption("Forest Jump")
 
 # Carrega o background uma vez
 image = pygame.image.load("assets/background.jpg").convert()
@@ -155,7 +172,11 @@ class Player:
         self.jump_frame = None
         try:
             jimg = pygame.image.load(jump_path).convert_alpha()
-            self.jump_frame = pygame.transform.smoothscale(jimg, (self.rect.width, self.rect.height))
+            # Mantemos proporção: escala para caber na altura do rect mantendo proporção
+            jw, jh = jimg.get_size()
+            scale_h = self.rect.height
+            scale_w = int(jw * (scale_h / jh))
+            self.jump_frame = pygame.transform.smoothscale(jimg, (scale_w, scale_h))
         except Exception as e:
             # se falhar, apenas mantemos jump_frame = None (fallback será o comportamento anterior)
             print(f"Aviso: não foi possível carregar jump.png: {e}")
@@ -251,7 +272,12 @@ class Player:
 
         # Se estiver no ar, desenha o sprite de pulo (se disponível)
         if not self.on_ground and self.jump_frame is not None:
-            surface.blit(self.jump_frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
+            # desenhamos o sprite de pulo centralizado horizontalmente no rect para evitar "esticamento"
+            frame = self.jump_frame
+            fw, fh = frame.get_size()
+            x = self.rect.centerx - fw // 2 - int(cam.x)
+            y = self.rect.y - int(cam.y)
+            surface.blit(frame, (x, y))
             return
 
         # Escolhe sprite conforme estado do jogador
@@ -269,7 +295,6 @@ class Player:
         else:
             # fallback
             frame = self.run_frames_right[0] if len(self.run_frames_right) > 0 else pygame.Surface((self.rect.width, self.rect.height))
-
 
         surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
 
@@ -486,48 +511,76 @@ lower_platforms = [
 
 all_platforms = platforms + lower_platforms
 
-# ===== Orbes (coletáveis) colocadas em plataformas fixas =====
-orbs = []
-orb_radius = 10
-orb_platform_indices = [0, 2, 4, 6]  # índices de PLATFORMS_FIXED onde haverá orbe
-for idx in orb_platform_indices:
-    if idx < len(platforms):
-        plat = platforms[idx]
-        ox = plat.centerx
-        oy = plat.top - 15
-        orbs.append(pygame.Rect(ox - orb_radius, oy - orb_radius, orb_radius * 2, orb_radius * 2))
+# ===== Orbes (coletáveis) - agora 10 orbes =====
+def create_orbs(total):
+    """Cria uma lista de rects para 'total' orbes, priorizando plataformas fixas, depois espalhando no chão."""
+    orbs_local = []
+    orb_radius_local = 10
+    # use os centros das primeiras plataformas possíveis
+    candidates = []
+    for p in platforms:
+        candidates.append((p.centerx, p.top - 15))
+    # também adicione alguns pontos no chão espalhados
+    ground_candidates = []
+    spacing = MAP_WIDTH // (total + 1)
+    for i in range(1, total + 1):
+        gx = i * spacing
+        gy = GROUND_Y - 20
+        ground_candidates.append((gx, gy))
+    combined = candidates + ground_candidates
+    # pick up to 'total' positions deterministically (para evitar colisões aleatórias)
+    chosen = []
+    idx = 0
+    while len(chosen) < total and idx < len(combined):
+        chosen.append(combined[idx])
+        idx += 1
+    # if still not enough (very unlikely), fill with random ground points
+    while len(chosen) < total:
+        rx = random.randint(WALL_WIDTH + 50, MAP_WIDTH - WALL_WIDTH - 50)
+        ry = GROUND_Y - 20
+        chosen.append((rx, ry))
+    for (ox, oy) in chosen[:total]:
+        orbs_local.append(pygame.Rect(int(ox - orb_radius_local), int(oy - orb_radius_local), orb_radius_local * 2, orb_radius_local * 2))
+    return orbs_local
 
-total_orbs = len(orbs)
+TOTAL_ORBS = 10
+orbs = create_orbs(TOTAL_ORBS)
+orb_radius = 10
+total_orbs = TOTAL_ORBS
 collected_orbs = 0
+orb_platform_indices = []  # mantido vazio para evitar uso anterior de reconstrução por índice
 
 # ===== Gera inimigos - sobre as plataformas principais =====
-enemies = []
+def create_enemies_on_platforms():
+    lst = []
+    for plat in platforms:
+        enemy = Enemy(plat, speed=2, sprite_size=(45,45))
+        # posiciona o inimigo exatamente no centro da plataforma
+        enemy.rect.centerx = plat.centerx
+        enemy.rect.bottom = plat.top
+        # define direção inicial para alternar (opcional)
+        enemy.direction = 1 if plat.centerx % 2 == 0 else -1
+        lst.append(enemy)
+    return lst
 
-for plat in platforms:
-    enemy = Enemy(plat, speed=2, sprite_size=(45,45))
-    # posiciona o inimigo exatamente no centro da plataforma
-    enemy.rect.centerx = plat.centerx
-    enemy.rect.bottom = plat.top
-    # define direção inicial para alternar (opcional)
-    enemy.direction = 1 if plat.centerx % 2 == 0 else -1
-    enemies.append(enemy)
+def create_ground_enemies(num):
+    positions = []
+    min_x = WALL_WIDTH + 50
+    max_x = MAP_WIDTH - WALL_WIDTH - 50
+    min_dist = 300  # distância mínima entre inimigos
+    attempts = 0
+    while len(positions) < num and attempts < 2000:
+        attempts += 1
+        x = random.randint(min_x, max_x)
+        if all(abs(x - px) >= min_dist for px in positions):
+            positions.append(x)
+    lst = []
+    for x in positions:
+        ge = GroundEnemy(x, GROUND_Y, speed=2, sprite_size=(45,45))
+        lst.append(ge)
+    return lst
 
-NUM_GROUND_ENEMIES = 7
-min_x = WALL_WIDTH + 50
-max_x = MAP_WIDTH - WALL_WIDTH - 50
-min_dist = 300  # distância mínima entre inimigos
-
-positions = []
-attempts = 0
-while len(positions) < NUM_GROUND_ENEMIES and attempts < 1000:
-    attempts += 1
-    x = random.randint(min_x, max_x)
-    if all(abs(x - px) >= min_dist for px in positions):
-        positions.append(x)
-
-for x in positions:
-    ge = GroundEnemy(x, GROUND_Y, speed=2, sprite_size=(45,45))
-    enemies.append(ge)
+enemies = create_enemies_on_platforms() + create_ground_enemies(7)
 
 
 # ===== Setup inicial =====
@@ -546,15 +599,36 @@ right_wall = pygame.Rect(MAP_WIDTH - WALL_WIDTH, 0, WALL_WIDTH, MAP_HEIGHT)
 walls = [left_wall, right_wall]
 
 game_over = False
-# start_time será definido quando o jogador apertar espaço na tela inicial
+game_won = False
+# start_time será definido quando o jogador apertar espaço na tela inicial/lobby
 start_time = None
 enemies_defeated = 0
 
 
-# ===== Tempo de partida (em milissegundos) =====
-TIME_LIMIT = 45 * 1000  # 60 segundos
-time_remaining = TIME_LIMIT
-next_phase = False
+# ===== Ranking (persistente) =====
+HIGHSCORES_FILE = "highscores.json"
+
+def load_highscores():
+    if os.path.exists(HIGHSCORES_FILE):
+        try:
+            with open(HIGHSCORES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def save_highscores(scores):
+    try:
+        with open(HIGHSCORES_FILE, "w", encoding="utf-8") as f:
+            json.dump(scores, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print("Erro salvando highscores:", e)
+
+highscores = load_highscores()  # lista de dicts {name, time_ms}
+
+# ===== Tempo de partida (agora conta para cima) =====
+TIME_LIMIT = None  # não usado como limite; usamos timer crescente
+time_elapsed_ms = 0
 
 # ===== Helpers para performance / desenhos pré-calculados =====
 # pre-calc positions for bottom orb slots (centered)
@@ -565,7 +639,7 @@ slots_center_x = WIDTH // 2
 slots_start_x = slots_center_x - (slot_spacing * slots_total) // 2 + slot_spacing // 2
 slots_y = HEIGHT - 40  # centro inferior
 
-# ===== Carrega tela inicial =====
+# ===== Carrega tela inicial, lobby e créditos =====
 start_screen_path = os.path.join("assets", "tela_inicial.png")
 try:
     start_img = pygame.image.load(start_screen_path).convert()
@@ -574,17 +648,32 @@ except Exception as e:
     print(f"Aviso: não foi possível carregar tela_inicial.png: {e}")
     start_img = None
 
-# ===== Tela inicial — aguarda espaço para iniciar =====
-game_started = False
-while not game_started:
+lobby_path = os.path.join("assets", "lobby_jogo.jpg")
+try:
+    lobby_img = pygame.image.load(lobby_path).convert()
+    lobby_img = pygame.transform.scale(lobby_img, (WIDTH, HEIGHT))
+except Exception as e:
+    print(f"Aviso: não foi possível carregar lobby_jogo.jpg: {e}")
+    lobby_img = None
+
+credits_path = os.path.join("assets", "tela_creditos.png")
+try:
+    credits_img = pygame.image.load(credits_path).convert()
+    credits_img = pygame.transform.scale(credits_img, (WIDTH, HEIGHT))
+except Exception as e:
+    print(f"Aviso: não foi possível carregar tela_creditos.png: {e}")
+    credits_img = None
+
+# ===== Tela inicial — aguarda espaço para ir à lobby (sem texto) =====
+showing_start = True
+while showing_start:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
             raise SystemExit()
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                game_started = True
-    # desenha a imagem (ou uma tela sólida se não existir)
+                showing_start = False  # vai para lobby
     if start_img:
         window.blit(start_img, (0, 0))
     else:
@@ -592,9 +681,74 @@ while not game_started:
     pygame.display.update()
     clock.tick(60)
 
+# ===== Lobby: esperar espaço para iniciar jogo, ou 'c' para créditos =====
+in_lobby = True
+game_started = False
+while in_lobby and not game_started:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            raise SystemExit()
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                game_started = True
+                in_lobby = False
+            elif event.key == pygame.K_c:
+                # abre créditos
+                showing_credits = True
+                while showing_credits:
+                    for ev in pygame.event.get():
+                        if ev.type == pygame.QUIT:
+                            pygame.quit()
+                            raise SystemExit()
+                        if ev.type == pygame.KEYDOWN:
+                            if ev.key == pygame.K_SPACE:
+                                showing_credits = False  # volta ao lobby
+                    if credits_img:
+                        window.blit(credits_img, (0, 0))
+                    else:
+                        window.fill((0, 0, 0))
+                    pygame.display.update()
+                    clock.tick(60)
+    if lobby_img:
+        window.blit(lobby_img, (0, 0))
+    else:
+        window.fill((0, 0, 0))
+    pygame.display.update()
+    clock.tick(60)
+
 # inicia o timer somente quando o jogo começa
 start_time = pygame.time.get_ticks()
-time_remaining = TIME_LIMIT
+time_elapsed_ms = 0
+
+# ===== Variáveis para input de nome quando vencer =====
+entering_name = False
+name_input = ""
+name_prompt_font = pygame.font.Font(pygame.font.get_default_font(), 28)
+
+# ===== Função para resetar o jogo =====
+def reset_game():
+    global player, cam, orbs, collected_orbs, enemies, bullets, start_time
+    global game_over, game_won, entering_name, name_input, time_elapsed_ms, enemies_defeated
+    # recriar player e câmera
+    player = Player(WALL_WIDTH + 100, GROUND_Y - 50)
+    cam = Camera(WIDTH, HEIGHT)
+    # recriar orbes e reset counters
+    orbs = create_orbs(TOTAL_ORBS)
+    collected_orbs = 0
+    # recriar inimigos (plataformas + chão)
+    enemies = create_enemies_on_platforms() + create_ground_enemies(7)
+    # limpar tiros
+    bullets = []
+    enemies_defeated = 0
+    # reset flags e timer
+    game_over = False
+    game_won = False
+    entering_name = False
+    name_input = ""
+    start_time = pygame.time.get_ticks()
+    time_elapsed_ms = 0
+    
 
 # ===== Loop principal =====
 running = True
@@ -602,6 +756,38 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+
+        # Quando venceu: tratar input de nome e permitir restart com espaço
+        if game_won:
+            if entering_name and event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_BACKSPACE:
+                    name_input = name_input[:-1]
+                elif event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+                    # salva o score
+                    entry = {"name": name_input if name_input.strip() != "" else "Anon", "time_ms": time_elapsed_ms}
+                    highscores.append(entry)
+                    # ordena por menor tempo
+                    highscores = sorted(highscores, key=lambda x: x["time_ms"])[:50]  # guardar top50
+                    save_highscores(highscores)
+                    entering_name = False
+                else:
+                    # limitar tamanho e aceitar caracteres normais
+                    if len(name_input) < 20 and event.unicode.isprintable():
+                        name_input += event.unicode
+            elif not entering_name and event.type == pygame.KEYDOWN:
+                # após salvar ou se não quiser digitar, espaço reinicia
+                if event.key == pygame.K_SPACE:
+                    reset_game()
+            # ignorar controles normais enquanto venceu
+            continue
+
+        # Quando em game_over: permitir restart com espaço
+        if game_over:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                reset_game()
+            continue
+
+        # controles normais do jogo (quando não venceu e não game_over)
         if not game_over and event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 player.jump_action()
@@ -612,18 +798,12 @@ while running:
 
     keys = pygame.key.get_pressed()
 
-    if not game_over:
+    if not game_over and not game_won:
+        # atualiza timer crescente
+        time_elapsed_ms = pygame.time.get_ticks() - start_time
+
         player.update(keys, all_platforms, walls)
         cam.update(player.rect, player.vx)
-
-        # Atualiza o tempo restante
-        elapsed = pygame.time.get_ticks() - start_time
-        time_remaining = max(0, TIME_LIMIT - elapsed)
-
-        # Se o tempo acabou, o jogo termina
-        if time_remaining == 0:
-            game_over = True
-
 
         # Checa colisão jogador <-> orbes (removendo ao coletar)
         for orb in orbs[:]:
@@ -666,6 +846,13 @@ while running:
 
         bullets = [b for b in bullets if b.alive]
         enemies = [e for e in enemies if not (hasattr(e, "dead_finished") and e.dead_finished)]
+
+        # checa vitória ao coletar todas as orbes
+        if collected_orbs >= total_orbs and not game_won:
+            game_won = True
+            entering_name = True
+            # trava o tempo final
+            time_elapsed_ms = pygame.time.get_ticks() - start_time
 
     # ===== Desenho =====
     window.fill((35, 60, 110))
@@ -716,7 +903,7 @@ while running:
     pygame.draw.rect(window, (60, 60, 60), (left_wall.x - int(cam.x), left_wall.y - int(cam.y), left_wall.width, left_wall.height))
     pygame.draw.rect(window, (60, 60, 60), (right_wall.x - int(cam.x), right_wall.y - int(cam.y), right_wall.width, right_wall.height))
 
-        # ===== HUD: vidas no canto superior esquerdo =====
+    # ===== HUD: vidas no canto superior esquerdo =====
     heart_radius = 10
     heart_padding = 10
     for i in range(4):  # total de 4 vidas
@@ -724,15 +911,15 @@ while running:
         hy = heart_padding + heart_radius
         color = (255, 0, 0) if i < player.lives else (80, 80, 80)
         pygame.draw.circle(window, color, (hx, hy), heart_radius)
-    
-    seconds_left = time_remaining // 1000
-    timer_text = font.render(f"Tempo: {seconds_left:02d}s", True, (255, 255, 255))
 
+    # ===== Timer (contando para cima) =====
+    seconds = time_elapsed_ms // 1000
+    ms = (time_elapsed_ms % 1000) // 10
+    timer_text = font.render(f"Tempo: {seconds:02d}:{ms:02d}", True, (255, 255, 255))
     window.blit(timer_icon, (WIDTH - 210, 10))
     window.blit(timer_text, (WIDTH - 175, 12))
 
-
-    # ===== Slots de orbes (círculos brancos vazios no centro inferior) - desenha contorno
+    # ===== Slots de orbes (círculos brancos vazios no centro inferior) - desenha contorno =====
     for i in range(slots_total):
         sx = slots_start_x + i * slot_spacing
         pygame.draw.circle(window, (200, 200, 200), (sx, slots_y), slot_radius, width=3)
@@ -744,31 +931,60 @@ while running:
         sx = slots_start_x + i * slot_spacing
         pygame.draw.circle(window, (255, 255, 255), (sx, slots_y), slot_radius - 4)
 
-    # ===== Tela final =====
+    # ===== Tela de vitória: mostra tempo final e input para nome =====
+    if game_won:
+        # semi-transparência de fundo
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))
+        window.blit(overlay, (0, 0))
+
+        # mostra tempo final centralizado
+        final_seconds = time_elapsed_ms // 1000
+        final_ms = (time_elapsed_ms % 1000) // 10
+        txt_time = font.render(f"Tempo final: {final_seconds:02d}:{final_ms:02d}", True, (255, 255, 0))
+        window.blit(txt_time, (WIDTH//2 - txt_time.get_width()//2, HEIGHT//2 - 80))
+
+        # mostra prompt para nome e caixa
+        prompt = name_prompt_font.render("Digite seu nome e pressione Enter:", True, (255,255,255))
+        window.blit(prompt, (WIDTH//2 - prompt.get_width()//2, HEIGHT//2 - 30))
+
+        # desenha caixa de texto
+        box_w, box_h = 480, 40
+        box_x = WIDTH//2 - box_w//2
+        box_y = HEIGHT//2 + 10
+        pygame.draw.rect(window, (255,255,255), (box_x-2, box_y-2, box_w+4, box_h+4), border_radius=6)  # borda
+        pygame.draw.rect(window, (30,30,30), (box_x, box_y, box_w, box_h), border_radius=6)
+        name_surf = name_prompt_font.render(name_input + ("|" if (pygame.time.get_ticks() // 500) % 2 == 0 else ""), True, (255,255,255))
+        window.blit(name_surf, (box_x + 10, box_y + (box_h - name_surf.get_height())//2))
+
+        # mostra top 5 do ranking atual (persistente)
+        hs_title = font.render("Ranking (melhores tempos)", True, (200,200,255))
+        window.blit(hs_title, (50, 100))
+        for i, entry in enumerate(highscores[:5]):
+            sec = entry["time_ms"] // 1000
+            ms_e = (entry["time_ms"] % 1000) // 10
+            line = font.render(f"{i+1}. {entry['name']} - {sec:02d}:{ms_e:02d}", True, (220,220,220))
+            window.blit(line, (50, 140 + i*28))
+
+        # instrução para reiniciar (após salvar ou pular digitar)
+        if not entering_name:
+            inst = font.render("Aperte a tecla espaço para reiniciar", True, (255,255,0))
+            window.blit(inst, (WIDTH//2 - inst.get_width()//2, HEIGHT//2 + 70))
+
+    # ===== Tela final (game over) =====
     if game_over:
-        from tela_final import mostrar_tela_final
-        acao = mostrar_tela_final(window, background, font, collected_orbs, total_orbs)
+        # semi-transparência de fundo
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))
+        window.blit(overlay, (0, 0))
 
-        if acao == "voltar":
-            # Reinicia o jogo
-            player = Player(WALL_WIDTH + 100, GROUND_Y - 50)
-            cam = Camera(WIDTH, HEIGHT)
-            collected_orbs = 0
-            orbs = []
-            for idx in orb_platform_indices:
-                plat = platforms[idx]
-                ox = plat.centerx
-                oy = plat.top - 15
-                orbs.append(pygame.Rect(ox - orb_radius, oy - orb_radius, orb_radius * 2, orb_radius * 2))
-            enemies_defeated = 0
-            start_time = pygame.time.get_ticks()
-            time_remaining = TIME_LIMIT
-            game_over = False
-            continue  # volta pro loop do jogo
+        # mensagem GAME OVER
+        go_surf = font.render("GAME OVER", True, (255, 0, 0))
+        window.blit(go_surf, (WIDTH//2 - go_surf.get_width()//2, HEIGHT//2 - 40))
 
-        elif acao == "sair":
-            running = False
-
+        # instrução para reiniciar
+        inst2 = font.render("aperte a tecla espaço para reiniciar", True, (255, 255, 0))
+        window.blit(inst2, (WIDTH//2 - inst2.get_width()//2, HEIGHT//2 + 10))
 
     pygame.display.update()
     clock.tick(60)
