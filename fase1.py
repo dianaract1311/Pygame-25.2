@@ -40,7 +40,7 @@ def load_strip(path, frames_count):
 
 # ===== Câmera =====
 class Camera:
-    def __init__(self, w, h, lerp=0.12, lookahead_x=140):
+    def _init_(self, w, h, lerp=0.12, lookahead_x=140):
         self.w, self.h = w, h
         self.lerp = lerp
         self.lookahead_x = lookahead_x
@@ -48,7 +48,7 @@ class Camera:
         self._current_look_x = 0.0
         self._look_smooth = 0.12
 
-    def _lerp(self, a, b, t): 
+    def _lerp(self, a, b, t):
         return a + (b - a) * t
 
     def update(self, player_rect, player_vx):
@@ -59,6 +59,16 @@ class Camera:
         target_x += self._current_look_x
         self.x = self._lerp(self.x, target_x, self.lerp)
         self.y = self._lerp(self.y, target_y, self.lerp)
+
+        # Clamp da câmera para não sair dos limites do mapa
+        if self.x < 0:
+            self.x = 0
+        if self.x > MAP_WIDTH - self.w:
+            self.x = MAP_WIDTH - self.w
+        if self.y < 0:
+            self.y = 0
+        if self.y > MAP_HEIGHT - self.h:
+            self.y = MAP_HEIGHT - self.h
 
 # ===== Jogador =====
 class Player:
