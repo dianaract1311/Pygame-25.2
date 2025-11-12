@@ -347,6 +347,20 @@ lower_platforms = [
 
 all_platforms = platforms + lower_platforms
 
+# ===== Orbes (coletáveis) colocadas em plataformas fixas =====
+orbs = []
+orb_radius = 10
+orb_platform_indices = [0, 2, 4, 6]  # índices de PLATFORMS_FIXED onde haverá orbe
+for idx in orb_platform_indices:
+    if idx < len(platforms):
+        plat = platforms[idx]
+        ox = plat.centerx
+        oy = plat.top - 15
+        orbs.append(pygame.Rect(ox - orb_radius, oy - orb_radius, orb_radius * 2, orb_radius * 2))
+
+total_orbs = len(orbs)
+collected_orbs = 0
+
 # ===== Gera inimigos =====
 enemies = []
 for plat in random.sample(platforms, k=min(len(platforms), 20)):
