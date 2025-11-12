@@ -322,42 +322,28 @@ class Enemy:
             frame = pygame.transform.flip(frame, True, False)
         surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
 
-# ===== Plataformas =====
-NUM_PLATFORMS = 15
-MIN_X_GAP = 190
-MAX_X_GAP = 400
-MIN_Y = GROUND_Y - 440
-MAX_Y = GROUND_Y - 200
-MIN_Y_DIFF = 170
-MAX_Y_DIFF = 250
+# ===== Plataformas FIXAS (layout "coringa") =====
+PLATFORMS_FIXED = [
+    # Tela 1 (0 .. WIDTH)
+    (WALL_WIDTH + 120, GROUND_Y - 180, 360, 40),
+    (WALL_WIDTH + 520, GROUND_Y - 300, 280, 40),
+    (WALL_WIDTH + 880, GROUND_Y - 220, 320, 40),
+    (WALL_WIDTH + 300, GROUND_Y - 420, 220, 40),
+    # Tela 2 (WIDTH .. MAP_WIDTH)
+    (WIDTH + 100, GROUND_Y - 160, 400, 40),
+    (WIDTH + 540, GROUND_Y - 260, 260, 40),
+    (WIDTH + 920, GROUND_Y - 340, 300, 40),
+    (WIDTH + 720, GROUND_Y - 120, 220, 40),
+]
 
-platforms = []
-x_pos = -600
-y_base = random.randint(MIN_Y, MAX_Y)
+platforms = [pygame.Rect(x, y, w, h) for (x, y, w, h) in PLATFORMS_FIXED]
 
-for i in range(NUM_PLATFORMS):
-    width = random.randint(280, 450)
-    height = 60
-    x_pos += random.randint(MIN_X_GAP, MAX_X_GAP)
-    # ===== Substituindo while True por loop seguro =====
-    for _ in range(100):
-        y_variation = random.randint(-MAX_Y_DIFF, MAX_Y_DIFF)
-        new_y = y_base + y_variation
-        if MIN_Y <= new_y <= MAX_Y and abs(new_y - y_base) >= MIN_Y_DIFF:
-            y_base = new_y
-            break
-    else:
-        y_base = max(MIN_Y, min(MAX_Y, y_base + random.randint(-MAX_Y_DIFF, MAX_Y_DIFF)))
-    rect = pygame.Rect(x_pos, y_base, width, height)
-    platforms.append(rect)
-
-# ===== Plataforma inicial de recuperação =====
-lower_platforms = []
-initial_platform_width = 160
-initial_platform_height = 50
-initial_platform_x = 100
-initial_platform_y = GROUND_Y - 120
-lower_platforms.append(pygame.Rect(initial_platform_x, initial_platform_y, initial_platform_width, initial_platform_height))
+# Plataformas baixas (recuperação) fixas
+lower_platforms = [
+    pygame.Rect(WALL_WIDTH + 60, GROUND_Y - 90, 120, 40),
+    pygame.Rect(WIDTH + 220, GROUND_Y - 90, 140, 40),
+    pygame.Rect(WALL_WIDTH + 820, GROUND_Y - 90, 160, 40),
+]
 
 all_platforms = platforms + lower_platforms
 
