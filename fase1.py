@@ -9,6 +9,9 @@ pygame.init()
 # inicializa o mixer de áudio
 pygame.mixer.init()
 
+# Carrega o som do tiro
+tiro = pygame.mixer.Sound("assets/snd/gunfire_sfx.wav")
+
 # inicia o timer somente quando o jogo começa
 start_time = pygame.time.get_ticks()
 time_elapsed_ms = 0
@@ -795,7 +798,7 @@ while running:
                 bx = player.rect.centerx + (player.facing * 30)
                 by = player.rect.centery
                 bullets.append(Bullet(bx, by, player.facing))
-
+                tiro.play()
     keys = pygame.key.get_pressed()
 
     if not game_over and not game_won:
