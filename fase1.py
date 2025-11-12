@@ -11,6 +11,7 @@ pygame.mixer.init()
 
 # Carrega o som do tiro
 tiro = pygame.mixer.Sound("assets/snd/gunfire_sfx.wav")
+jump = pygame.mixer.Sound("assets/snd/SFX_Jump_03.wav")
 
 # inicia o timer somente quando o jogo começa
 start_time = pygame.time.get_ticks()
@@ -785,6 +786,7 @@ while running:
         if not game_over and event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 player.jump_action()
+                jump.play()
             if event.key == pygame.K_e:
                 bx = player.rect.centerx + (player.facing * 30)
                 by = player.rect.centery
