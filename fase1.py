@@ -236,6 +236,50 @@ class Enemy:
     def update(self):
         if self.dead_finished:
             return
+        # Movimento
+        if not self.dying:
+            self.rect.x += self.speed * self.direction
+            if self.rect.x <= self.left_limit:
+                self.rect.x = self.left_limit
+                self.direction = 1
+            elif self.rect.x >= self.right_limit:
+                self.rect.x = self.right_limit
+                self.direction = -1
+            self.rect.bottom = self.platform.top - 5
+
+            # definir estado
+            self.state = "walk"
+        else:
+            self.rect.bottom = self.platform.top - 5
+
+        # animação
+        self.animation_timer += self.animation_speed
+        if self.animation_timer >= 1:
+            self.animation_timer = 0
+            self.frame_index += 1
+            if self.state == "walk":
+                frames = self.walk_right if self.direction == 1 else self.walk_left
+                if self.frame_index >= len(frames):
+                    self.frame_index = 0
+            else:
+                self.frame_index = 0
+
+    def start_death(self):
+        # aqui apenas marca como não-alive; não temos animação de death por enquanto
+        self.alive = False
+        self.dead_finished = True
+
+    def draw(self, surface, cam):
+        if self.dead_finished:
+            return
+        if self.state == "walk":
+            frames = self.walk_right if self.direction == 1 else self.walk_left
+        else:
+            frames = self.idle_right if self.direction == 1 else self.idle_left
+        idx = self.frame_index % len(frames)
+        frame = frames[idx]
+        surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
+
         
 # ===== Inimigos animados =====
 class Enemy:
