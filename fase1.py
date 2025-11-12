@@ -377,11 +377,16 @@ for i in range(GROUND_ENEMIES):
 
 # ===== Setup inicial =====
 clock = pygame.time.Clock()
-player = Player(100, GROUND_Y - 50)
+player = Player(WALL_WIDTH + 100, GROUND_Y - 50)
 cam = Camera(WIDTH, HEIGHT)
 font = pygame.font.Font(pygame.font.get_default_font(), 24)
 bullets = []
-orbes = []
+green_circles = []
+
+# Paredes laterais (retângulos sólidos)
+left_wall = pygame.Rect(0, 0, WALL_WIDTH, MAP_HEIGHT)
+right_wall = pygame.Rect(MAP_WIDTH - WALL_WIDTH, 0, WALL_WIDTH, MAP_HEIGHT)
+walls = [left_wall, right_wall]
 
 game_over = False
 start_time = pygame.time.get_ticks()
