@@ -113,22 +113,35 @@ class Bullet:
     def draw(self, surface, cam):
         pygame.draw.circle(surface, self.color, (self.rect.centerx - int(cam.x), self.rect.centery - int(cam.y)), 5)
 
-# ===== Inimigos =====
+# ===== Inimigos animados =====
 class Enemy:
     def __init__(self, platform, speed=2):
         self.platform = platform
-        self.width = 40
-        self.height = 40
+
+        # Tamanho um pouco menor que o jogador
+        self.width = 45
+        self.height = 45
+
         self.left_limit = platform.left + 4
         self.right_limit = platform.right - self.width - 4
         start_x = random.randint(self.left_limit, self.right_limit)
-        self.rect = pygame.Rect(start_x, platform.top - self.height, self.width, self.height)
-        self.color = (0, 0, 0)
+        self.rect = pygame.Rect(start_x, platform.top - self.height - 5, self.width, self.height)  # 5px mais pra cima
+
         self.speed = speed
-        self.direction = random.choice([-1, 1])
+        self.direction = random.choice([-1, 1])  # -1 = esquerda, 1 = direita
         self.alive = True
 
+        # Carrega e redimensiona frames
+        self.frames = [
+            pygame.transform.scale(pygame.image.load("assets/fly1.png").convert_alpha(), (self.width, self.height)),
+            pygame.transform.scale(pygame.image.load("assets/fly2.png").convert_alpha(), (self.width, self.height))
+        ]
+        self.frame_index = 0
+        self.animation_speed = 0.2
+        self.animation_timer = 0
+
     def update(self):
+        # Movimento horizontal
         self.rect.x += self.speed * self.direction
         if self.rect.x <= self.left_limit:
             self.rect.x = self.left_limit
@@ -136,13 +149,25 @@ class Enemy:
         elif self.rect.x >= self.right_limit:
             self.rect.x = self.right_limit
             self.direction = -1
-        self.rect.bottom = self.platform.top
+
+        # Fica um pouco mais acima na plataforma
+        self.rect.bottom = self.platform.top - 5
+
+        # Atualiza animação
+        self.animation_timer += self.animation_speed
+        if self.animation_timer >= 1:
+            self.animation_timer = 0
+            self.frame_index = (self.frame_index + 1) % len(self.frames)
 
     def draw(self, surface, cam):
-        pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
+        frame = self.frames[self.frame_index]
+        # Se andando para a esquerda, vira horizontalmente
+        if self.direction == 1:
+            frame = pygame.transform.flip(frame, True, False)
+        surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
 
 # ===== Plataformas =====
-platform_img = pygame.image.load("assets/blocks.png").convert_alpha()
+# platform_img = pygame.image.load("assets/blocks.png").convert_alpha()
 
 NUM_PLATFORMS = 20
 MIN_X_GAP = 160
