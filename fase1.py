@@ -418,92 +418,56 @@ while running:
     keys = pygame.key.get_pressed()
 
     if not game_over:
-        player.update(keys, all_platforms)
+        player.update(keys, all_platforms, walls)
         cam.update(player.rect, player.vx)
 
+        # Checa colisão jogador <-> orbes (removendo ao coletar)
+        for orb in orbs[:]:
+            if player.rect.colliderect(orb):
+                orbs.remove(orb)
+                collected_orbs += 1
+
+        # inimigo <-> jogador: aplica dano apenas se não estiver invulnerável
         for enemy in enemies:
             if enemy.alive and player.rect.colliderect(enemy.rect):
-                player.lives -= 1
-                if player.lives <= 0:
-                    game_over = True
-                else:
-                    # Teleporta jogador para trás, mas evita sair do mapa
-                    player.rect.x = max(0, player.rect.x - 150)
-                    player.rect.y = max(0, player.rect.y - 50)
-                    player.vy = 0
+                damaged = player.take_damage()
+                if damaged:
+                    if player.lives <= 0:
+                        game_over = True
+                    else:
+                        player.vy = 0
 
+        # atualiza inimigos (culling simples: atualiza apenas se próximos à câmera)
+        cam_left = int(cam.x) - 200
+        cam_right = int(cam.x) + WIDTH + 200
         for enemy in enemies:
-            if enemy.alive:
-                enemy.update()
+            if enemy.dead_finished:
+                continue
+            if enemy.rect.right < cam_left or enemy.rect.left > cam_right:
+                continue
+            enemy.update()
 
+        # tiros vs inimigos: mata imediatamente (sem animação death por enquanto)
         for bullet in bullets:
             bullet.update()
-            # Limite de colisões por frame para performance
             for enemy in enemies:
                 if enemy.alive and bullet.rect.colliderect(enemy.rect):
-                    orbes.append(pygame.Rect(enemy.rect.centerx - 10, enemy.rect.centery - 10, 20, 20))
-                    enemy.alive = False
+                    enemy.start_death()
                     bullet.alive = False
                     enemies_defeated += 1
-                    break  # evita múltiplas colisões do mesmo tiro
 
         bullets = [b for b in bullets if b.alive]
-        enemies = [e for e in enemies if e.alive]
-
-        # Coleta de orbes
-        for orb in orbes[:]:
-            if player.rect.colliderect(orb):
-                player.orbes_collected += 1
-                orbes.remove(orb)
-
-        # ===== Verifica tempo de jogo =====
-        elapsed_seconds = (pygame.time.get_ticks() - start_time) // 1000
-        if elapsed_seconds >= 45:
-            game_over = True
-            if player.orbes_collected >= 15:
-                phase_result = "FASE 2 DESBLOQUEADA!"
-            else:
-                phase_result = "GAME OVER - poucos inimigos derrotados."
+        enemies = [e for e in enemies if not e.dead_finished]
 
     # ===== Desenho =====
     window.fill((35, 60, 110))
-    window.blit(background, (0, 0))
-    pygame.draw.rect(window, ground_color, (0 - int(cam.x), GROUND_Y - int(cam.y), 6000, GROUND_HEIGHT))
 
-    for plat in all_platforms:
-        pygame.draw.rect(
-            window,
-            ground_color,
-            (plat.x - int(cam.x), plat.y - int(cam.y), plat.width, plat.height),
-            border_radius=12
-        )
+    # Desenha background duas vezes para cobrir MAP_WIDTH = 2 * WIDTH (movendo com câmera)
+    bg_x = -int(cam.x) % WIDTH
+    window.blit(background, (bg_x - WIDTH, -int(cam.y)))
+    window.blit(background, (bg_x, -int(cam.y)))
 
-    for orb in orbes:
-        pygame.draw.circle(window, (0, 255, 0), (orb.centerx - int(cam.x), orb.centery - int(cam.y)), 10)
+    # Desenha chão (ajustado ao MAP_WIDTH)
+    pygame.draw.rect(window, ground_color, (0 - int(cam.x), GROUND_Y - int(cam.y), MAP_WIDTH, GROUND_HEIGHT))
 
-    for enemy in enemies:
-        enemy.draw(window, cam)
-
-    for bullet in bullets:
-        bullet.draw(window, cam)
-
-    player.draw(window, cam)
-
-    txt = font.render(f"x={int(player.rect.x)}  Lives={player.lives}  Time={elapsed_seconds}s  Orbes={player.orbes_collected}", True, (255,255,255))
-    window.blit(txt, (10, 10))
-
-    if game_over:
-        if 'phase_result' in locals():
-            msg = phase_result
-        else:
-            msg = "GAME OVER"
-        msg_surface = font.render(msg, True, (255, 255, 0))
-        window.blit(msg_surface, (WIDTH // 2 - msg_surface.get_width() // 2, HEIGHT // 2 - 20))
-        pygame.display.update()
-        pygame.time.wait(4000)
-        running = False
-
-    pygame.display.update()
-    clock.tick(40)
-
-pygame.quit()
+    
