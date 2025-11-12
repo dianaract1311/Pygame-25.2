@@ -392,6 +392,15 @@ game_over = False
 start_time = pygame.time.get_ticks()
 enemies_defeated = 0
 
+# ===== Helpers para performance / desenhos pré-calculados =====
+# pre-calc positions for bottom orb slots (centered)
+slots_total = total_orbs if total_orbs > 0 else 4
+slot_radius = 14
+slot_spacing = slot_radius * 2 + 12
+slots_center_x = WIDTH // 2
+slots_start_x = slots_center_x - (slot_spacing * slots_total) // 2 + slot_spacing // 2
+slots_y = HEIGHT - 40  # centro inferior
+
 # ===== Loop principal =====
 running = True
 while running:
