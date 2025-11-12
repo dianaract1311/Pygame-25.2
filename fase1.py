@@ -50,6 +50,7 @@ class Player:
         self.on_ground = False
         self.facing = 1
         self.lives = 3
+        self.orbes_collected = 0
 
     def update(self, keys, platforms):
         self.vx = 0
@@ -117,21 +118,15 @@ class Bullet:
 class Enemy:
     def __init__(self, platform, speed=2):
         self.platform = platform
-
-        # Tamanho um pouco menor que o jogador
-        self.width = 45
-        self.height = 45
-
+        self.width = 60
+        self.height = 60
         self.left_limit = platform.left + 4
         self.right_limit = platform.right - self.width - 4
         start_x = random.randint(self.left_limit, self.right_limit)
-        self.rect = pygame.Rect(start_x, platform.top - self.height - 5, self.width, self.height)  # 5px mais pra cima
-
+        self.rect = pygame.Rect(start_x, platform.top - self.height - 5, self.width, self.height)
         self.speed = speed
-        self.direction = random.choice([-1, 1])  # -1 = esquerda, 1 = direita
+        self.direction = random.choice([-1, 1])
         self.alive = True
-
-        # Carrega e redimensiona frames
         self.frames = [
             pygame.transform.scale(pygame.image.load("assets/fly1.png").convert_alpha(), (self.width, self.height)),
             pygame.transform.scale(pygame.image.load("assets/fly2.png").convert_alpha(), (self.width, self.height))
@@ -141,7 +136,6 @@ class Enemy:
         self.animation_timer = 0
 
     def update(self):
-        # Movimento horizontal
         self.rect.x += self.speed * self.direction
         if self.rect.x <= self.left_limit:
             self.rect.x = self.left_limit
@@ -149,11 +143,7 @@ class Enemy:
         elif self.rect.x >= self.right_limit:
             self.rect.x = self.right_limit
             self.direction = -1
-
-        # Fica um pouco mais acima na plataforma
         self.rect.bottom = self.platform.top - 5
-
-        # Atualiza animação
         self.animation_timer += self.animation_speed
         if self.animation_timer >= 1:
             self.animation_timer = 0
@@ -161,58 +151,48 @@ class Enemy:
 
     def draw(self, surface, cam):
         frame = self.frames[self.frame_index]
-        # Se andando para a esquerda, vira horizontalmente
         if self.direction == 1:
             frame = pygame.transform.flip(frame, True, False)
         surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
 
 # ===== Plataformas =====
-# platform_img = pygame.image.load("assets/blocks.png").convert_alpha()
-
-NUM_PLATFORMS = 20
-MIN_X_GAP = 160
+NUM_PLATFORMS = 15
+MIN_X_GAP = 190
 MAX_X_GAP = 400
 MIN_Y = GROUND_Y - 440
 MAX_Y = GROUND_Y - 200
 MIN_Y_DIFF = 170
-MAX_Y_DIFF = 190
+MAX_Y_DIFF = 250
 
 platforms = []
 x_pos = -600
 y_base = random.randint(MIN_Y, MAX_Y)
 
-# Plataformas principais
 for i in range(NUM_PLATFORMS):
     width = random.randint(280, 450)
     height = 60
     x_pos += random.randint(MIN_X_GAP, MAX_X_GAP)
-    while True:
+    # ===== Substituindo while True por loop seguro =====
+    for _ in range(100):
         y_variation = random.randint(-MAX_Y_DIFF, MAX_Y_DIFF)
         new_y = y_base + y_variation
         if MIN_Y <= new_y <= MAX_Y and abs(new_y - y_base) >= MIN_Y_DIFF:
             y_base = new_y
             break
+    else:
+        y_base = max(MIN_Y, min(MAX_Y, y_base + random.randint(-MAX_Y_DIFF, MAX_Y_DIFF)))
     rect = pygame.Rect(x_pos, y_base, width, height)
     platforms.append(rect)
 
-# Plataformas de recuperação
+# ===== Plataforma inicial de recuperação =====
 lower_platforms = []
-for i in range(random.randint(4, 6)):
-    width = random.randint(80, 160)
-    height = 50
-    x = random.randint(-400, 20000)
-    y = random.randint(GROUND_Y - 120, GROUND_Y - 60)
-    lower_platforms.append(pygame.Rect(x, y, width, height))
+initial_platform_width = 160
+initial_platform_height = 50
+initial_platform_x = 100
+initial_platform_y = GROUND_Y - 120
+lower_platforms.append(pygame.Rect(initial_platform_x, initial_platform_y, initial_platform_width, initial_platform_height))
 
 all_platforms = platforms + lower_platforms
-
-# ===== Círculos aleatórios sobre plataformas =====
-circles_on_platforms = []
-for plat in platforms:
-    if random.random() < 0.3:
-        cx = plat.centerx
-        cy = plat.top - 15
-        circles_on_platforms.append((cx, cy))
 
 # ===== Gera inimigos =====
 enemies = []
@@ -229,7 +209,7 @@ player = Player(100, GROUND_Y - 50)
 cam = Camera(WIDTH, HEIGHT)
 font = pygame.font.Font(pygame.font.get_default_font(), 24)
 bullets = []
-green_circles = []
+orbes = []
 
 game_over = False
 start_time = pygame.time.get_ticks()
@@ -261,8 +241,9 @@ while running:
                 if player.lives <= 0:
                     game_over = True
                 else:
-                    player.rect.x -= 150
-                    player.rect.y -= 50
+                    # Teleporta jogador para trás, mas evita sair do mapa
+                    player.rect.x = max(0, player.rect.x - 150)
+                    player.rect.y = max(0, player.rect.y - 50)
                     player.vy = 0
 
         for enemy in enemies:
@@ -271,21 +252,29 @@ while running:
 
         for bullet in bullets:
             bullet.update()
+            # Limite de colisões por frame para performance
             for enemy in enemies:
                 if enemy.alive and bullet.rect.colliderect(enemy.rect):
-                    green_circles.append((enemy.rect.centerx, enemy.rect.centery))
+                    orbes.append(pygame.Rect(enemy.rect.centerx - 10, enemy.rect.centery - 10, 20, 20))
                     enemy.alive = False
                     bullet.alive = False
                     enemies_defeated += 1
+                    break  # evita múltiplas colisões do mesmo tiro
 
         bullets = [b for b in bullets if b.alive]
         enemies = [e for e in enemies if e.alive]
 
+        # Coleta de orbes
+        for orb in orbes[:]:
+            if player.rect.colliderect(orb):
+                player.orbes_collected += 1
+                orbes.remove(orb)
+
         # ===== Verifica tempo de jogo =====
         elapsed_seconds = (pygame.time.get_ticks() - start_time) // 1000
-        if elapsed_seconds >= 30:
+        if elapsed_seconds >= 45:
             game_over = True
-            if enemies_defeated >= 15:
+            if player.orbes_collected >= 15:
                 phase_result = "FASE 2 DESBLOQUEADA!"
             else:
                 phase_result = "GAME OVER - poucos inimigos derrotados."
@@ -295,7 +284,6 @@ while running:
     window.blit(background, (0, 0))
     pygame.draw.rect(window, ground_color, (0 - int(cam.x), GROUND_Y - int(cam.y), 6000, GROUND_HEIGHT))
 
-    # Plataformas
     for plat in all_platforms:
         pygame.draw.rect(
             window,
@@ -304,31 +292,20 @@ while running:
             border_radius=12
         )
 
-    # Círculos sobre plataformas
-    for cx, cy in circles_on_platforms:
-        pygame.draw.circle(window, (0, 200, 255), (cx - int(cam.x), cy - int(cam.y)), 15)
+    for orb in orbes:
+        pygame.draw.circle(window, (0, 255, 0), (orb.centerx - int(cam.x), orb.centery - int(cam.y)), 10)
 
-    # Círculos verdes (inimigos mortos)
-    for gx, gy in green_circles:
-        pygame.draw.circle(window, (0, 255, 0), (gx - int(cam.x), gy - int(cam.y)), 15)
-
-    # Inimigos
     for enemy in enemies:
         enemy.draw(window, cam)
 
-    # Tiros
     for bullet in bullets:
         bullet.draw(window, cam)
 
-    # Jogador
     player.draw(window, cam)
 
-    # HUD
-    elapsed_seconds = (pygame.time.get_ticks() - start_time) // 1000
-    txt = font.render(f"x={int(player.rect.x)}  Lives={player.lives}  Time={elapsed_seconds}s  Enemies={enemies_defeated}", True, (255,255,255))
+    txt = font.render(f"x={int(player.rect.x)}  Lives={player.lives}  Time={elapsed_seconds}s  Orbes={player.orbes_collected}", True, (255,255,255))
     window.blit(txt, (10, 10))
 
-    # ===== Tela final =====
     if game_over:
         if 'phase_result' in locals():
             msg = phase_result
