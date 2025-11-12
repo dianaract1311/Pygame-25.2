@@ -26,7 +26,8 @@ class Camera:
         self._current_look_x = 0.0
         self._look_smooth = 0.12
 
-    def _lerp(self, a, b, t): return a + (b - a) * t
+    def _lerp(self, a, b, t): 
+        return a + (b - a) * t
 
     def update(self, player_rect, player_vx):
         target_x = player_rect.centerx - self.w / 2
@@ -79,6 +80,15 @@ class Player:
             self.vy = 0
             self.on_ground = True
 
+        # ===== Limites do mapa =====
+        MAP_LEFT_LIMIT = 0
+        MAP_RIGHT_LIMIT = 6000
+
+        if self.rect.left < MAP_LEFT_LIMIT:
+            self.rect.left = MAP_LEFT_LIMIT
+        if self.rect.right > MAP_RIGHT_LIMIT:
+            self.rect.right = MAP_RIGHT_LIMIT
+
     def jump_action(self):
         if self.on_ground:
             self.vy = self.jump
@@ -103,7 +113,7 @@ class Bullet:
     def draw(self, surface, cam):
         pygame.draw.circle(surface, self.color, (self.rect.centerx - int(cam.x), self.rect.centery - int(cam.y)), 5)
 
-# ===== Inimigos fase 1 =====
+# ===== Inimigos =====
 class Enemy:
     def __init__(self, platform, speed=2):
         self.platform = platform
@@ -246,10 +256,19 @@ while running:
         bullets = [b for b in bullets if b.alive]
         enemies = [e for e in enemies if e.alive]
 
+        # ===== Verifica tempo de jogo =====
+        elapsed_seconds = (pygame.time.get_ticks() - start_time) // 1000
+        if elapsed_seconds >= 30:
+            game_over = True
+            if enemies_defeated >= 15:
+                phase_result = "FASE 2 DESBLOQUEADA!"
+            else:
+                phase_result = "GAME OVER - poucos inimigos derrotados."
+
     # ===== Desenho =====
     window.fill((35, 60, 110))
     window.blit(background, (0, 0))
-    pygame.draw.rect(window, ground_color, (0 - int(cam.x), GROUND_Y - int(cam.y), 20000, GROUND_HEIGHT))
+    pygame.draw.rect(window, ground_color, (0 - int(cam.x), GROUND_Y - int(cam.y), 6000, GROUND_HEIGHT))
 
     # Plataformas
     for plat in all_platforms:
@@ -284,6 +303,17 @@ while running:
     txt = font.render(f"x={int(player.rect.x)}  Lives={player.lives}  Time={elapsed_seconds}s  Enemies={enemies_defeated}", True, (255,255,255))
     window.blit(txt, (10, 10))
 
+    # ===== Tela final =====
+    if game_over:
+        if 'phase_result' in locals():
+            msg = phase_result
+        else:
+            msg = "GAME OVER"
+        msg_surface = font.render(msg, True, (255, 255, 0))
+        window.blit(msg_surface, (WIDTH // 2 - msg_surface.get_width() // 2, HEIGHT // 2 - 20))
+        pygame.display.update()
+        pygame.time.wait(4000)
+        running = False
 
     pygame.display.update()
     clock.tick(40)
