@@ -118,6 +118,25 @@ class Player:
         except Exception as e:
             print(f"Erro carregando run.gif: {e}")
             frames = []
+        
+        # ===== Carrega frames de idle (idle.gif) =====
+        idle_path = os.path.join("assets", "idle.gif")
+        self.idle_frames_right = []
+        self.idle_frames_left = []
+        try:
+            idle_frames = load_gif_frames(idle_path)
+            self.idle_frames_right = [
+                pygame.transform.smoothscale(f, (self.rect.width, self.rect.height))
+                for f in idle_frames
+            ]
+            self.idle_frames_left = [pygame.transform.flip(f, True, False) for f in self.idle_frames_right]
+        except Exception as e:
+            print(f"Aviso: não foi possível carregar idle.gif: {e}")
+            # fallback — usa o primeiro frame de corrida como idle
+            if len(self.run_frames_right) > 0:
+                self.idle_frames_right = [self.run_frames_right[0]]
+                self.idle_frames_left = [self.run_frames_left[0]]
+
 
         # Redimensiona frames para o tamanho do jogador
         self.run_frames_right = [
@@ -234,18 +253,22 @@ class Player:
             surface.blit(self.jump_frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
             return
 
-        # Seleciona frame de corrida (ou frame 0 se parado)
-        if self.vx != 0 and len(self.run_frames_right) > 0:
+        # Escolhe sprite conforme estado do jogador
+        if not self.on_ground and self.jump_frame is not None:
+            # no ar → sprite de pulo
+            frame = self.jump_frame
+        elif self.vx != 0 and len(self.run_frames_right) > 0:
+            # andando → animação de corrida
             frames = self.run_frames_right if self.facing == 1 else self.run_frames_left
             frame = frames[self.frame_index % len(frames)]
+        elif len(self.idle_frames_right) > 0:
+            # parado no chão → idle animado
+            idle_frames = self.idle_frames_right if self.facing == 1 else self.idle_frames_left
+            frame = idle_frames[(pygame.time.get_ticks() // 150) % len(idle_frames)]
         else:
-            # garante que existe pelo menos um frame
-            if len(self.run_frames_right) > 0:
-                frame = self.run_frames_right[0] if self.facing == 1 else self.run_frames_left[0]
-            else:
-                # fallback desenha um retângulo se algo deu errado com os frames
-                pygame.draw.rect(surface, self.color, self.rect.move(-int(cam.x), -int(cam.y)))
-                return
+            # fallback
+            frame = self.run_frames_right[0] if len(self.run_frames_right) > 0 else pygame.Surface((self.rect.width, self.rect.height))
+
 
         surface.blit(frame, (self.rect.x - int(cam.x), self.rect.y - int(cam.y)))
 
