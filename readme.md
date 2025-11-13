@@ -22,6 +22,7 @@
 3. Siga as instruções fornecidas nas telas para jogar.
 
 ## Demonstração + link
+[![Assista no YouTube](https://img.youtube.com/vi/hBn_DliSAFk/hqdefault.jpg)](https://youtu.be/hBn_DliSAFk)
 
 
 ## Referência
