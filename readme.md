@@ -24,14 +24,10 @@
 ## Demonstração + link
 [![Assista no YouTube](https://img.youtube.com/vi/hBn_DliSAFk/hqdefault.jpg)](https://youtu.be/hBn_DliSAFk)
 
-
-## Referência
-
-
 ## FAQ
 
 #### Como funciona?
+Rode o file fase1.py e siga as instruções
 
-
-![Logo](assets/img/Logo_Insper.png)
+![Logo](assets/insper.png)
 
